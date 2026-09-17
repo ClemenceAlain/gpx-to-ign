@@ -38,10 +38,13 @@ export class PdfPage {
   readonly images: PdfImage[] = []
   private readonly content = new ByteBuffer()
 
-  constructor(
-    readonly widthPt: number,
-    readonly heightPt: number,
-  ) {}
+  readonly widthPt: number
+  readonly heightPt: number
+
+  constructor(widthPt: number, heightPt: number) {
+    this.widthPt = widthPt
+    this.heightPt = heightPt
+  }
 
   contentBytes(): Uint8Array {
     return this.content.toBytes()

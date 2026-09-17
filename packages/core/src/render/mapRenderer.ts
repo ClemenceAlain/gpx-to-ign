@@ -227,11 +227,15 @@ function blit(src: RgbaImage, dst: RgbaImage, atX: number, atY: number): void {
 
 /** A contiguous patch of the source grid, sampled bilinearly so rotated text stays legible. */
 class Mosaic {
-  constructor(
-    private readonly image: RgbaImage,
-    private readonly offsetX: number,
-    private readonly offsetY: number,
-  ) {}
+  private readonly image: RgbaImage
+  private readonly offsetX: number
+  private readonly offsetY: number
+
+  constructor(image: RgbaImage, offsetX: number, offsetY: number) {
+    this.image = image
+    this.offsetX = offsetX
+    this.offsetY = offsetY
+  }
 
   sampleInto(gx: number, gy: number, out: Uint8ClampedArray, at: number): void {
     const fx = gx - this.offsetX - 0.5

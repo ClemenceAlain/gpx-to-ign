@@ -7,11 +7,12 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --build --force && tsc --noEmit -p packages/core/tsconfig.test.json",
+    "typecheck": "tsc --build --force && tsc --noEmit -p packages/core/tsconfig.test.json && tsc --noEmit -p packages/cli/tsconfig.test.json && tsc --noEmit -p packages/web/tsconfig.json",
     "dev": "npm run dev --workspace @gpx-to-ign/web",
     "test:web": "npm run -w @gpx-to-ign/web test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "build": "tsc --build"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

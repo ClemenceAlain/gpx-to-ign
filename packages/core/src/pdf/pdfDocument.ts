@@ -56,11 +56,14 @@ export class PdfDocument {
   private written = 0
   private finished = false
 
-  constructor(
-    private readonly out: ByteSink,
-    private readonly widthPt: number,
-    private readonly heightPt: number,
-  ) {
+  private readonly out: ByteSink
+  private readonly widthPt: number
+  private readonly heightPt: number
+
+  constructor(out: ByteSink, widthPt: number, heightPt: number) {
+    this.out = out
+    this.widthPt = widthPt
+    this.heightPt = heightPt
     this.write(latin1('%PDF-1.4\n%âãÏÓ\n'))
     this.writeObject(
       REGULAR_FONT,

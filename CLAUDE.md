@@ -127,9 +127,9 @@ hand-built controls, no component library. Full rules in `REBUILD-PLAN.md`.
 
 ## Where the rebuild is
 
-Branch `rebuild-typescript`. Last commit `eebdc6b`.
-`npx vitest run` => 103 passing. `npm run typecheck` clean.
-`npm run -w @gpx-to-ign/web test` => 10 Playwright tests passing.
+Branch `rebuild-typescript`. Last commit `6f8d8b1`.
+`npx vitest run` => 124 passing. `npm run typecheck` clean (it checks all four projects).
+`npm run -w @gpx-to-ign/web test` => 11 Playwright tests passing.
 `npx prettier --check .` clean — the config is `.prettierrc.json`; without it Prettier
 reformats the whole repo to its own defaults.
 
@@ -146,6 +146,7 @@ watched fail, then the implementation:
 | layout | `packages/core/src/layout/{rect,random,cover,pageLayout,planPreview}.ts` |
 | job | `packages/core/src/job.ts` — plan / estimate / run, checkpointed |
 | web | `packages/web` — the real app: screen, preview, workers, platform seams |
+| cli | `packages/cli` — same flags the Kotlin CLI took, Skia codec, filesystem tile cache |
 
 **Decisions taken while porting, do not re-litigate:**
 - The raster is `RgbaImage` (8-bit RGBA in a `Uint8ClampedArray`), not Kotlin's packed ARGB
@@ -202,13 +203,26 @@ fixtures to what `PageLayout.plan` printed on the JVM: same page count, same rot
 dropping a throwaway JUnit test in the Kotlin tree that prints the plan — that is what the
 Kotlin tree is still here for.
 
+**`core` compiles to `dist` and is consumed as built JS by Node**, because Node's
+`--experimental-strip-types` resolves neither `.js` specifiers onto `.ts` files nor
+TypeScript parameter properties. Two consequences worth knowing:
+- **No parameter properties anywhere in `core` or `cli`.** Declare the field, assign it in
+  the constructor body. Adding one back breaks `node packages/cli/dist/main.js` only after
+  a rebuild, which is a confusing way to find out.
+- Vite and Vitest both alias `@gpx-to-ign/core` to `packages/core/src/index.ts`, so neither
+  needs a build first. Only the CLI reads `dist`. Run `npm run build` before using it.
+
+**Priming the cache.** `node packages/cli/dist/main.js -o /tmp/x.pdf <trace.gpx>` fills
+`.tilecache/{source}/{z}/{col}/{row}.png` — the same layout the Kotlin CLI used, so a cache
+primed by either serves both. The Normandy traverse is 452 tiles / 33 MB; the second run
+takes 3.5 s and downloads nothing.
+
 **Next, in order:**
-1. `job.ts` — plan / estimate / run, checkpointed. The size estimate uses the re-measured
-   browser curve above, not the Kotlin one.
-2. The real web UI: Traces / Mise en page / Source / Aperçu, the SVG plan preview, French,
-   to the design rules in `REBUILD-PLAN.md`. The walking skeleton's `App.tsx` is a
-   placeholder and should be replaced wholesale.
-3. `packages/cli`, then `packages/mobile` (Capacitor), then delete the Kotlin tree.
+1. `packages/mobile` — Capacitor wrapping `packages/web/dist`, the `ACTION_SEND` intent
+   filters, `@capacitor/filesystem` + `@capacitor/share` for output.
+2. CI: `ci.yml` (typecheck, lint, vitest, vite build, Playwright screenshots),
+   `pages.yml`, `release.yml`.
+3. Cut over: delete the Kotlin tree, rewrite `README.md`, merge into `main`.
 
 **Verified by hand, do not re-check:**
 - SCAN25 + `ign_scan_ws` works today; CORS is `access-control-allow-origin: *`.

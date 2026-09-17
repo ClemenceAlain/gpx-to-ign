@@ -1,0 +1,17 @@
+{
+  "name": "@gpx-to-ign/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "gpx-to-ign": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@gpx-to-ign/core": "*",
+    "@napi-rs/canvas": "^0.1.60"
+  }
+}

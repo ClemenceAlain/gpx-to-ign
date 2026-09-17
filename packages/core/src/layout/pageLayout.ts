@@ -124,16 +124,31 @@ export class Layout implements PageFrame {
   readonly angleDeg: number
   private readonly frame: PageFrame
 
+  readonly angleRad: number
+  readonly paper: PaperSpec
+  readonly marginM: number
+  readonly pages: readonly MapPage[]
+  readonly trackBounds: Bounds
+  readonly samples: readonly L93[]
+  /** Index of the first sample of each leg, plus a trailing entry equal to `samples.length`. */
+  readonly segmentStart: Int32Array
+
   constructor(
-    readonly angleRad: number,
-    readonly paper: PaperSpec,
-    readonly marginM: number,
-    readonly pages: readonly MapPage[],
-    readonly trackBounds: Bounds,
-    readonly samples: readonly L93[],
-    /** Index of the first sample of each leg, plus a trailing entry equal to `samples.length`. */
-    readonly segmentStart: Int32Array,
+    angleRad: number,
+    paper: PaperSpec,
+    marginM: number,
+    pages: readonly MapPage[],
+    trackBounds: Bounds,
+    samples: readonly L93[],
+    segmentStart: Int32Array,
   ) {
+    this.angleRad = angleRad
+    this.paper = paper
+    this.marginM = marginM
+    this.pages = pages
+    this.trackBounds = trackBounds
+    this.samples = samples
+    this.segmentStart = segmentStart
     this.frame = pageFrame(angleRad)
     this.angleDeg = this.frame.angleDeg
   }
@@ -248,8 +263,12 @@ export function plan(files: readonly GpxFile[], paper: PaperSpec, options: Layou
 }
 
 /**
- * Page count for every candidate rotation, cheapest strategy only. Exposed so the CLI
- * can explain why a plan came out at the size it did.
+ * Page count for every candidate rotation. Exposed so the CLI can explain why a plan came
+ * out at the size it did.
+ *
+ * Scored the way `plan` scores: the cheap sequential cover for all 180 angles, then the
+ * thorough solve only on the shortlist. Running the thorough solve everywhere took 27
+ * seconds and disagreed with nothing — the shortlist is where it ever changes the answer.
  */
 export function scoreAngles(
   files: readonly GpxFile[],
@@ -260,10 +279,26 @@ export function scoreAngles(
   const w = mapWidthM(paper) - 2 * options.marginM
   const h = mapHeightM(paper) - 2 * options.marginM
   const step = Math.max(options.angleStepDeg, 0.1)
-  return [...Array(Math.ceil(180.0 / step))].map((_, index) => {
+
+  const scored = [...Array(Math.ceil(180.0 / step))].map((_, index) => {
     const angle = (index * step * Math.PI) / 180
     const cover = coverFor(samples, segmentStart, angle, w, h)
-    return { angleDeg: (angle * 180) / Math.PI, pages: cover.solve(true, RESTARTS).length }
+    return { angleDeg: (angle * 180) / Math.PI, angle, pages: cover.refine(cover.sequential()).length }
+  })
+
+  const best = Math.min(...scored.map((s) => s.pages))
+  const shortlist = new Set(
+    scored
+      .filter((s) => s.pages <= best + 1)
+      .sort((a, b) => a.pages - b.pages || a.angle - b.angle)
+      .slice(0, SHORTLIST)
+      .map((s) => s.angleDeg),
+  )
+
+  return scored.map((s) => {
+    if (!shortlist.has(s.angleDeg)) return { angleDeg: s.angleDeg, pages: s.pages }
+    const cover = coverFor(samples, segmentStart, s.angle, w, h)
+    return { angleDeg: s.angleDeg, pages: cover.solve(true, RESTARTS).length }
   })
 }
 

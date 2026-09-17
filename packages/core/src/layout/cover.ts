@@ -30,14 +30,25 @@ export class Cover {
   private readonly byU: Int32Array
   private readonly sortedU: Float64Array
 
+  private readonly u: Float64Array
+  private readonly v: Float64Array
+  /** Index of the first point of each segment, plus a trailing entry equal to `u.length`. */
+  private readonly segmentStart: Int32Array
+  private readonly w: number
+  private readonly h: number
+
   constructor(
-    private readonly u: Float64Array,
-    private readonly v: Float64Array,
-    /** Index of the first point of each segment, plus a trailing entry equal to `u.length`. */
-    private readonly segmentStart: Int32Array,
-    private readonly w: number,
-    private readonly h: number,
+    u: Float64Array,
+    v: Float64Array,
+    segmentStart: Int32Array,
+    w: number,
+    h: number,
   ) {
+    this.u = u
+    this.v = v
+    this.segmentStart = segmentStart
+    this.w = w
+    this.h = h
     this.n = u.length
     if (this.n === 0) throw new Error('nothing to cover')
     if (!(w > 0 && h > 0)) throw new Error('margin leaves no usable page area')

@@ -15,12 +15,12 @@ export interface TileFetcher {
 }
 
 export class TileFetchError extends Error {
-  constructor(
-    message: string,
-    /** Whether trying the same request again could plausibly succeed. */
-    readonly retryable = false,
-  ) {
+  /** Whether trying the same request again could plausibly succeed. */
+  readonly retryable: boolean
+
+  constructor(message: string, retryable = false) {
     super(message)
+    this.retryable = retryable
   }
 }
 
