@@ -37,13 +37,7 @@ export class Cover {
   private readonly w: number
   private readonly h: number
 
-  constructor(
-    u: Float64Array,
-    v: Float64Array,
-    segmentStart: Int32Array,
-    w: number,
-    h: number,
-  ) {
+  constructor(u: Float64Array, v: Float64Array, segmentStart: Int32Array, w: number, h: number) {
     this.u = u
     this.v = v
     this.segmentStart = segmentStart

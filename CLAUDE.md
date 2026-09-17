@@ -98,15 +98,18 @@ https://data.geopf.fr/private/wmts?apikey=ign_scan_ws
   backend.
 - Attribution must appear on every page: `© IGN — SCAN25®`.
 
-## Rebuild rules, while both codebases exist
+## The Kotlin original
 
-- **Do not delete the Kotlin tree** (`core/ app/ cli/ gradle/ gradlew* *.gradle.kts`) until
-  stage-diff equivalence passes on every fixture. It is the oracle for the port.
-- **Port the Kotlin test first, watch it fail, then port the implementation.** The 48
-  existing tests are the specification. Where Kotlin had none — `PageDecor` — write the
-  test against the invariants instead, and still watch it fail first.
-- Prime `.tilecache` once and point both implementations at it. Never let an iteration loop
-  re-download ~68 MB from IGN.
+The app was rebuilt from a Kotlin/Compose implementation, deleted at the cutover on
+2026-09-17 and tagged **`kotlin-oracle`**. It is still the only independent check on the
+port. `packages/core/test/layout/fixtures.test.ts` pins the page plan it produced for both
+fixtures — page count, rotation, sample count, rectangles to 0.1 m — and the TypeScript
+reproduces them exactly. To regenerate those literals, check out the tag and drop a
+throwaway JUnit test that prints `PageLayout.plan`.
+
+`layout/random.ts` reproduces `kotlin.random.Random`'s XorWow bit for bit for the same
+reason: the seeded restarts choose the page plan, so a generator that merely looked random
+would quietly produce different books.
 
 ## Fixtures
 
@@ -255,9 +258,12 @@ the APK. Every step except the two Gradle ones was replayed locally from a clean
 never declared, so `npm run format:check` passed here and would have failed on the first
 green-looking CI run.
 
-**Next, in order:**
-1. Install the APK on a phone and check the four device-only paths above.
-2. Cut over: delete the Kotlin tree, rewrite `README.md`, merge into `main`.
+**Anchor `.prettierignore` entries.** `core/` and `cli/`, added for the Kotlin directories,
+also matched `packages/core/` and `packages/cli/` — so the format check had been skipping
+most of the codebase it claimed to cover. Ignore paths from the repo root.
+
+**Next:** install the APK on a phone and check the four device-only paths above. Then merge
+into `main`.
 
 **Verified by hand, do not re-check:**
 - SCAN25 + `ign_scan_ws` works today; CORS is `access-control-allow-origin: *`.

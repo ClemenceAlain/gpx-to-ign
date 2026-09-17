@@ -67,8 +67,7 @@ export async function run(argv: readonly string[], deps: RunDeps = {}): Promise<
   const points = files.reduce((total, f) => total + pointCount(f), 0)
   log(`read ${files.length} file(s), ${points} points`)
 
-  const source =
-    args.apiKey === null ? args.source : { ...args.source, apiKey: args.apiKey }
+  const source = args.apiKey === null ? args.source : { ...args.source, apiKey: args.apiKey }
   const layoutOptions = {
     ...DEFAULT_LAYOUT_OPTIONS,
     marginM: args.marginM,
@@ -132,7 +131,8 @@ export async function run(argv: readonly string[], deps: RunDeps = {}): Promise<
   return 0
 }
 
-const invokedDirectly = process.argv[1] !== undefined && import.meta.url.endsWith(basename(process.argv[1]))
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url.endsWith(basename(process.argv[1]))
 if (invokedDirectly) {
   try {
     process.exitCode = await run(process.argv.slice(2))

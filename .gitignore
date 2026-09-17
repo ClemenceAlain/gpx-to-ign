@@ -1,20 +1,14 @@
-# Kotlin / Gradle (removed at cutover)
-.gradle/
-build/
-.kotlin/
-local.properties
-
-# Node
 node_modules/
 dist/
+*.tsbuildinfo
 
 # Tile cache — never commit ~70 MB of IGN rasters
 .tilecache/
-*.tsbuildinfo
+
+# Playwright and the real-tile runs
 packages/web/out/
 test-results/
 playwright-report/
-dist/
 
 # Capacitor: the android project is committed, but everything `cap sync` or Gradle
 # regenerates is not.
@@ -22,6 +16,7 @@ packages/mobile/android/.gradle/
 packages/mobile/android/build/
 packages/mobile/android/app/build/
 packages/mobile/android/local.properties
+packages/mobile/android/release.keystore
 packages/mobile/android/app/src/main/assets/public/
 packages/mobile/android/app/src/main/assets/capacitor.config.json
 packages/mobile/android/app/src/main/assets/capacitor.plugins.json

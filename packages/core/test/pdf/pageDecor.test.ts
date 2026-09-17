@@ -21,9 +21,12 @@ function leg(...points: readonly (readonly [number, number])[]): PagePoint[] {
 
 /** Every `x1 y1 m x2 y2 l S` in the stream — the operator `PdfPage.line` emits. */
 function strokedSegments(content: string): [number, number, number, number][] {
-  return [
-    ...content.matchAll(/^(-?[\d.]+) (-?[\d.]+) m (-?[\d.]+) (-?[\d.]+) l S$/gm),
-  ].map((m) => [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])])
+  return [...content.matchAll(/^(-?[\d.]+) (-?[\d.]+) m (-?[\d.]+) (-?[\d.]+) l S$/gm)].map((m) => [
+    Number(m[1]),
+    Number(m[2]),
+    Number(m[3]),
+    Number(m[4]),
+  ])
 }
 
 const ATTRIBUTION = '© IGN — SCAN25®'
@@ -173,7 +176,10 @@ describe('PageDecor', () => {
 
   it('drops a leg that misses the page entirely', () => {
     const p = page()
-    const far = leg([p.rect.uMin - 90_000, p.rect.vMin - 90_000], [p.rect.uMin - 80_000, p.rect.vMin - 80_000])
+    const far = leg(
+      [p.rect.uMin - 90_000, p.rect.vMin - 90_000],
+      [p.rect.uMin - 80_000, p.rect.vMin - 80_000],
+    )
     expect(draw(p, 0, 1, null, [far])).toBe(draw(p, 0, 1, null, []))
   })
 })

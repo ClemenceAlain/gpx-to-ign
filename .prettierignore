@@ -1,12 +1,11 @@
-dist/
 node_modules/
-packages/web/out/
+dist/
 packages/core/dist/
-core/
-app/
-cli/
-build/
+packages/web/out/
+packages/mobile/android/
 package-lock.json
+
+# Prose, wrapped by hand
 README.md
 REBUILD-PLAN.md
 CLAUDE.md

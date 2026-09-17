@@ -283,7 +283,11 @@ export function scoreAngles(
   const scored = [...Array(Math.ceil(180.0 / step))].map((_, index) => {
     const angle = (index * step * Math.PI) / 180
     const cover = coverFor(samples, segmentStart, angle, w, h)
-    return { angleDeg: (angle * 180) / Math.PI, angle, pages: cover.refine(cover.sequential()).length }
+    return {
+      angleDeg: (angle * 180) / Math.PI,
+      angle,
+      pages: cover.refine(cover.sequential()).length,
+    }
   })
 
   const best = Math.min(...scored.map((s) => s.pages))

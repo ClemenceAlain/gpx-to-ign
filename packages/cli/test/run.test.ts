@@ -6,7 +6,9 @@ import { createCanvas } from '@napi-rs/canvas'
 import { afterAll, describe, expect, it } from 'vitest'
 import { run } from '../src/main.js'
 
-const FIXTURE = fileURLToPath(new URL('../../../fixtures/normandie-traverse-30km.gpx', import.meta.url))
+const FIXTURE = fileURLToPath(
+  new URL('../../../fixtures/normandie-traverse-30km.gpx', import.meta.url),
+)
 const root = mkdtempSync(join(tmpdir(), 'gpx-to-ign-cli-'))
 afterAll(() => rmSync(root, { recursive: true, force: true }))
 
@@ -61,24 +63,30 @@ describe('run', () => {
   })
 
   // Four A4 pages is 96 blocks through Skia twice over; the default 5 s is not enough.
-  it('writes a whole book, then serves the second run from the cache', { timeout: 180_000 }, async () => {
-    const out = join(root, 'book.pdf')
-    const cache = join(root, 'tiles')
-    const first = capture()
-    expect(await run(['-o', out, '--cache', cache, FIXTURE], { log: first.log, fetchImpl })).toBe(0)
+  it(
+    'writes a whole book, then serves the second run from the cache',
+    { timeout: 180_000 },
+    async () => {
+      const out = join(root, 'book.pdf')
+      const cache = join(root, 'tiles')
+      const first = capture()
+      expect(await run(['-o', out, '--cache', cache, FIXTURE], { log: first.log, fetchImpl })).toBe(
+        0,
+      )
 
-    const pdf = readFileSync(out)
-    expect(pdf.subarray(0, 8).toString('latin1')).toBe('%PDF-1.4')
-    expect(pdf.toString('latin1')).toContain('/Type /Pages /Count 4')
-    expect(first.lines.at(-1)).toMatch(/^wrote .*book\.pdf: 4 A4 page\(s\)/)
+      const pdf = readFileSync(out)
+      expect(pdf.subarray(0, 8).toString('latin1')).toBe('%PDF-1.4')
+      expect(pdf.toString('latin1')).toContain('/Type /Pages /Count 4')
+      expect(first.lines.at(-1)).toMatch(/^wrote .*book\.pdf: 4 A4 page\(s\)/)
 
-    const second = capture()
-    const refuse = (() => {
-      throw new Error('the cache should have served every tile')
-    }) as unknown as typeof fetch
-    await run(['-o', out, '--cache', cache, FIXTURE], { log: second.log, fetchImpl: refuse })
-    expect(second.lines.at(-1)).toContain('0.0 MB downloaded')
-  })
+      const second = capture()
+      const refuse = (() => {
+        throw new Error('the cache should have served every tile')
+      }) as unknown as typeof fetch
+      await run(['-o', out, '--cache', cache, FIXTURE], { log: second.log, fetchImpl: refuse })
+      expect(second.lines.at(-1)).toContain('0.0 MB downloaded')
+    },
+  )
 
   it('fails on a file that is not there', async () => {
     await expect(run(['nope.gpx'], { log: () => {} })).rejects.toThrow(/no such file: nope.gpx/)
