@@ -112,8 +112,8 @@ hand-built controls, no component library. Full rules in `REBUILD-PLAN.md`.
 
 ## Where the rebuild is
 
-Branch `rebuild-typescript`. Last commit `e9dd01d`.
-`npx vitest run` => 59 passing. `npm run typecheck` clean.
+Branch `rebuild-typescript`. Last commit `8541749`.
+`npx vitest run` => 91 passing. `npm run typecheck` clean.
 `npm run -w @gpx-to-ign/web test` => 2 Playwright tests passing.
 
 **Done** — ported test-first from Kotlin, each module's Kotlin test translated,
@@ -126,7 +126,7 @@ watched fail, then the implementation:
 | pdf | `packages/core/src/pdf/{format,metrics,geometry,pdfPage,pdfDocument,pageDecor}.ts` |
 | tiles | `packages/core/src/tiles/{mapSource,tileFetcher}.ts` |
 | render | `packages/core/src/render/{image,mapRenderer}.ts` |
-| layout | `packages/core/src/layout/{rect,pageLayout}.ts` — data and frame only, no packing |
+| layout | `packages/core/src/layout/{rect,random,cover,pageLayout,planPreview}.ts` |
 | web | `packages/web` — the walking skeleton, see below |
 
 **Decisions taken while porting, do not re-litigate:**
@@ -138,6 +138,9 @@ watched fail, then the implementation:
   implement it.
 - `core` compiles with the DOM lib: `fetch`, `AbortController` and the timers live nowhere
   else. Keep `core` free of the real DOM by review, not by the compiler.
+- `layout/random.ts` reproduces `kotlin.random.Random`'s XorWow **bit for bit**, checked
+  against values printed from the JVM. The restarts pick the page plan, so a generator that
+  merely looked random would quietly produce different books from the oracle.
 - Platform packages import from `@gpx-to-ign/core` only — never a deeper path. Vite is
   configured to alias that to `../core/src/index.ts` and exclude it from `optimizeDeps`;
   without both, Vite pre-bundles core once and an edit to it silently does nothing.
@@ -157,13 +160,21 @@ Two loops, deliberately separate:
 Rendered at 254 dpi with `pdftoppm`, the blue kilometre grid measures **400.0 px = 40.00 mm**
 between lines. The geometry is right; only printer scaling is left to check on paper.
 
+**The ruler test passed** on 2026-09-17. 1 km measures 40.0 mm on paper.
+
+**Differential test against Kotlin.** `test/layout/fixtures.test.ts` pins the plan for both
+fixtures to what `PageLayout.plan` printed on the JVM: same page count, same rotation
+(9.0000° on the traverse), same sample count, same rectangles to 0.1 m. Regenerate it by
+dropping a throwaway JUnit test in the Kotlin tree that prints the plan — that is what the
+Kotlin tree is still here for.
+
 **Next, in order:**
-1. **Gate: the ruler test.** Print `packages/web/out/ruler-page1.pdf` at 100% on A4 — no
-   fit-to-page. A kilometre of the blue Lambert-93 grid, and the scale bar, must measure
-   40.0 mm. Only Clémence can do this. Do not start the layout port before it passes.
-2. Then `layout/` — `cover.ts`, the packing in `pageLayout.ts`, `planPreview.ts`. The
-   biggest and subtlest port. `Layout` implements the existing `PageFrame`.
-3. Then `job.ts`, the checkpointed plan/estimate/run, and the real web UI.
+1. `job.ts` — plan / estimate / run, checkpointed. The size estimate uses the re-measured
+   browser curve above, not the Kotlin one.
+2. The real web UI: Traces / Mise en page / Source / Aperçu, the SVG plan preview, French,
+   to the design rules in `REBUILD-PLAN.md`. The walking skeleton's `App.tsx` is a
+   placeholder and should be replaced wholesale.
+3. `packages/cli`, then `packages/mobile` (Capacitor), then delete the Kotlin tree.
 
 **Verified by hand, do not re-check:**
 - SCAN25 + `ign_scan_ws` works today; CORS is `access-control-allow-origin: *`.
@@ -172,4 +183,6 @@ between lines. The geometry is right; only printer scaling is left to check on p
 - Node 22.14, npm 10.9, Java 21, Android SDK at `/home/clemence/Android`.
 - Playwright chromium-headless-shell 1243 is installed.
 
-**Still missing:** a loop GPX fixture. Nothing exercises `Cover.maxCoverage` yet.
+**Still missing:** a loop GPX *fixture*. `Cover.maxCoverage` is now exercised by a
+synthetic 12 km ring in `pageLayout.test.ts`, but no real Komoot loop has been through the
+whole pipeline.
