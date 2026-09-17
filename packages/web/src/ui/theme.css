@@ -432,18 +432,32 @@ button.row:active {
   }
 }
 
+/* The job's own card, where the primary button was. */
+.running {
+  padding: 14px var(--row-inset) 16px;
+}
+
+.running-line {
+  align-items: baseline;
+  display: flex;
+  font-size: var(--text-body);
+  gap: 12px;
+  justify-content: space-between;
+}
+
 .progress {
   background: var(--fill);
-  border-radius: 2px;
-  height: 4px;
-  margin-top: 14px;
+  border-radius: 4px;
+  height: 8px;
+  margin-top: 12px;
   overflow: hidden;
 }
 
 .progress div {
   background: var(--accent);
-  border-radius: 2px;
+  border-radius: 4px;
   height: 100%;
+  min-width: 8px;
   transition: width 200ms ease-out;
 }
 

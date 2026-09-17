@@ -191,6 +191,35 @@ test('prints the trace on the map pages only when asked', async ({ page }) => {
   expect(found).toBe(true)
 })
 
+test('shows a progress bar that actually moves while generating', async ({ page }) => {
+  await open(page)
+  // Slow the tiles a little, so the running state is observable rather than a flash.
+  const png = await page.evaluate(async () => {
+    const c = new OffscreenCanvas(256, 256)
+    c.getContext('2d')!.fillRect(0, 0, 256, 256)
+    return [...new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer())]
+  })
+  await page.route('**/data.geopf.fr/**', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 6))
+    return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(png) })
+  })
+  await page.getByTestId('gpx').setInputFiles(FIXTURE)
+  await expect(page.getByTestId('preview')).toBeVisible()
+  await page.getByTestId('generate').click()
+
+  // The button is gone: the action became its own progress, where the eye already is.
+  const running = page.getByTestId('job-running')
+  await expect(running).toBeInViewport()
+  await expect(page.getByTestId('generate')).toHaveCount(0)
+
+  const bar = running.locator('.progress div')
+  await expect(bar).toBeVisible()
+  const box = await bar.boundingBox()
+  expect(box!.height).toBeGreaterThanOrEqual(6)
+  await expect(running).toContainText(/%/)
+  await expect(page.getByTestId('job-done')).toBeVisible({ timeout: 170_000 })
+})
+
 test('accepts several traces at once', async ({ page }) => {
   await open(page)
   await page.getByTestId('gpx').setInputFiles([FIXTURE, SECOND])

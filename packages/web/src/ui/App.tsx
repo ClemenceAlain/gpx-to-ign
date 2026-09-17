@@ -427,17 +427,23 @@ export function App(): React.JSX.Element {
                 </SectionFootnote>
 
                 <div style={{ marginTop: 24 }}>
-                  <PrimaryButton
-                    testId="generate"
-                    onClick={() => void generate()}
-                    disabled={job?.kind === 'running' || planned.stale}
-                  >
-                    Générer le PDF
-                  </PrimaryButton>
+                  {job?.kind === 'running' ? (
+                    // The action becomes its own progress, in the place the eye already is.
+                    // Left below the button it was a 4 px grey hairline nobody could see.
+                    <RunningCard job={job} />
+                  ) : (
+                    <PrimaryButton
+                      testId="generate"
+                      onClick={() => void generate()}
+                      disabled={planned.stale}
+                    >
+                      Générer le PDF
+                    </PrimaryButton>
+                  )}
                 </div>
               </>
             )}
-            {job !== null && <JobSection job={job} />}
+            {job !== null && job.kind !== 'running' && <JobSection job={job} />}
           </>
         )}
       </div>
@@ -481,26 +487,34 @@ function Summary({ estimate }: { estimate: JobEstimate }): React.JSX.Element {
   )
 }
 
+/** What the primary button turns into for the length of a job: a bar and a number. */
+function RunningCard({ job }: { job: Extract<Job, { kind: 'running' }> }): React.JSX.Element {
+  const percent = job.total > 0 ? (job.done / job.total) * 100 : 0
+  return (
+    <Section>
+      <div className="running" data-testid="job-running">
+        <div className="running-line">
+          <span>{job.label}</span>
+          {/* A percentage, not "1 / 4": the label already says which page, and the two
+              counts disagree by one because one is starting and the other is finished. */}
+          <span className="row-value">{Math.round(percent)} %</span>
+        </div>
+        <div
+          className="progress"
+          role="progressbar"
+          aria-valuenow={job.done}
+          aria-valuemin={0}
+          aria-valuemax={job.total}
+        >
+          <div style={{ width: `${percent}%` }} />
+        </div>
+      </div>
+    </Section>
+  )
+}
+
 function JobSection({ job }: { job: Job }): React.JSX.Element {
-  if (job.kind === 'running') {
-    return (
-      <>
-        <SectionHeader>En cours</SectionHeader>
-        <Section>
-          <div style={{ padding: 16 }} data-testid="job-running">
-            {job.label}
-            <div className="progress">
-              <div
-                style={{
-                  width: `${job.total > 0 ? (job.done / job.total) * 100 : 0}%`,
-                }}
-              />
-            </div>
-          </div>
-        </Section>
-      </>
-    )
-  }
+  if (job.kind === 'running') return <RunningCard job={job} />
   if (job.kind === 'failed') {
     return (
       <>

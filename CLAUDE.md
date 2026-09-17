@@ -129,7 +129,7 @@ hand-built controls, no component library. Full rules in `REBUILD-PLAN.md`.
 
 Branch `rebuild-typescript`. Last commit `6f8d8b1`.
 `npx vitest run` => 124 passing. `npm run typecheck` clean (it checks all four projects).
-`npm run -w @gpx-to-ign/web test` => 11 Playwright tests passing.
+`npm run -w @gpx-to-ign/web test` => 12 Playwright tests passing.
 `npx prettier --check .` clean — the config is `.prettierrc.json`; without it Prettier
 reformats the whole repo to its own defaults.
 
@@ -188,6 +188,11 @@ height pinned to the controls column by a `ResizeObserver` publishing `--control
 CSS grid can stretch the shorter column but has no way to cap the taller one. Beside the
 preview the summary collapses to one quiet line, because every row it costs there is a row
 the map does not get.
+
+**While a job runs the primary button becomes the progress card.** Left below the button it
+was a 4 px pale hairline in a detached section nobody could see. The figure beside the label
+is a percentage, not `2 / 4`: the label already says which page, and a done-count next to a
+starting-page-number disagrees by one.
 
 `packages/web/src/skeleton.ts` is no longer the app — it is the measurement harness the
 `pageSizes` run drives. The app is `ui/App.tsx`.
