@@ -82,3 +82,38 @@ that saves pages on loops and out-and-backs. Ask before relying on that path bei
 
 Apple-like, sober, efficient — grouped inset lists, one accent colour, system font stack,
 hand-built controls, no component library. Full rules in `REBUILD-PLAN.md`.
+
+## Where the rebuild is
+
+Branch `rebuild-typescript`. Last commit `ea17b46`. `npx vitest run` => 43 passing.
+
+**Done** — ported test-first from Kotlin, each module's Kotlin test translated,
+watched fail, then the implementation:
+
+| Module | Files |
+|---|---|
+| geo | `packages/core/src/geo/{lambert93,tileGrid}.ts` |
+| gpx | `packages/core/src/gpx/{xml,gpx}.ts` (own tokenizer: no DOMParser in Node) |
+| pdf | `packages/core/src/pdf/{format,metrics,geometry,pdfPage,pdfDocument}.ts` |
+| tiles | `packages/core/src/tiles/{mapSource,tileFetcher}.ts` |
+
+**Next, in order:**
+1. `render/mapRenderer.ts` — port `core/.../render/MapRenderer.kt`. 512 px blocks,
+   bilinear, 64-entry tile LRU. Platform seam is
+   `ImageCodec { decode(bytes), encodeJpeg(img, quality) }`.
+2. `pdf/pageDecor.ts` — port `core/.../pdf/PageDecor.kt`. Needed for the ruler test:
+   the L93 1 km grid is what gets measured.
+3. **Walking skeleton** — `packages/web`, Vite + React, one hardcoded north-up page
+   over `fixtures/normandie-traverse-30km.gpx`, fetch -> render -> JPEG -> PDF, in a
+   real browser. Drive it headless with Playwright so there is a feedback loop.
+4. **Gate: the ruler test.** Print page 1 at 100% on A4; 1 km must measure 40.0 mm.
+   Only Clémence can do this. Do not start the layout port before it passes.
+5. Then `layout/` (the packing), the biggest and subtlest port.
+
+**Verified by hand, do not re-check:**
+- SCAN25 + `ign_scan_ws` works today; CORS is `access-control-allow-origin: *`.
+- SCAN25 covers the Normandy fixtures: level 16, `TILECOL=819 TILEROW=7984` returns
+  a 128 kB PNG.
+- Node 22.14, npm 10.9, Java 21, Android SDK at `/home/clemence/Android`.
+
+**Still missing:** a loop GPX fixture. Nothing exercises `Cover.maxCoverage` yet.
