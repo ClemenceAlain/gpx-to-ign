@@ -1,4 +1,4 @@
-import { deflateSync } from 'fflate'
+import { zlibSync } from 'fflate'
 import { fmt, latin1 } from './format.js'
 import { PdfPage } from './pdfPage.js'
 
@@ -94,7 +94,9 @@ export class PdfDocument {
     const contentRef = this.writeStream(
       this.allocate(),
       '/Filter /FlateDecode',
-      deflateSync(page.contentBytes(), { level: 9 }),
+      // zlib, not raw deflate: /FlateDecode is RFC 1950, header and Adler-32 included.
+      // fflate's deflateSync emits RFC 1951, which every real viewer rejects.
+      zlibSync(page.contentBytes(), { level: 9 }),
     )
 
     let resources = `<< /Font << /F1 ${REGULAR_FONT} 0 R /F2 ${BOLD_FONT} 0 R >>`

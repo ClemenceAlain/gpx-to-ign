@@ -64,6 +64,20 @@ test('renders one A4 page of map into a real PDF', async ({ page }) => {
   await expect(page.getByTestId('status')).not.toContainText('manquantes')
   // ~108 tiles of ground, each fetched once however many blocks straddle it.
   await expect(page.getByTestId('status')).toContainText(/1\d\d tuiles téléchargées/)
+
+  // The content stream must be zlib-framed. Raw deflate satisfies every structural check
+  // above and still prints a blank page, because no viewer can inflate it.
+  const header = /<< \/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/.exec(
+    pdf.toString('latin1'),
+  )
+  expect(header).not.toBeNull()
+  const content = pdf.subarray(
+    header!.index + header![0].length,
+    header!.index + header![0].length + Number(header![1]),
+  )
+  // RFC 1950: low nibble 8 is DEFLATE, and the two header bytes are a multiple of 31.
+  expect(content[0]! & 0x0f).toBe(8)
+  expect(((content[0]! << 8) | content[1]!) % 31).toBe(0)
 })
 
 test('the fixture parses to a page centred on the trace', async ({ page }) => {

@@ -112,8 +112,8 @@ hand-built controls, no component library. Full rules in `REBUILD-PLAN.md`.
 
 ## Where the rebuild is
 
-Branch `rebuild-typescript`. Last commit `7df29e2`.
-`npx vitest run` => 58 passing. `npm run typecheck` clean.
+Branch `rebuild-typescript`. Last commit `e9dd01d`.
+`npx vitest run` => 59 passing. `npm run typecheck` clean.
 `npm run -w @gpx-to-ign/web test` => 2 Playwright tests passing.
 
 **Done** — ported test-first from Kotlin, each module's Kotlin test translated,
@@ -138,7 +138,13 @@ watched fail, then the implementation:
   implement it.
 - `core` compiles with the DOM lib: `fetch`, `AbortController` and the timers live nowhere
   else. Keep `core` free of the real DOM by review, not by the compiler.
-- Platform packages import from `@gpx-to-ign/core` only — never a deeper path.
+- Platform packages import from `@gpx-to-ign/core` only — never a deeper path. Vite is
+  configured to alias that to `../core/src/index.ts` and exclude it from `optimizeDeps`;
+  without both, Vite pre-bundles core once and an edit to it silently does nothing.
+- `/Filter /FlateDecode` is **zlib** (RFC 1950), so the writer uses fflate's `zlibSync`.
+  `deflateSync` emits raw RFC 1951, which passes every structural check and still renders a
+  blank page in every real viewer. That shipped once. `pdfDocument.test.ts` asserts the
+  zlib header, and so does the Playwright skeleton test.
 
 **The walking skeleton.** `packages/web` renders one north-up A4 page and downloads a PDF.
 Two loops, deliberately separate:
@@ -147,6 +153,9 @@ Two loops, deliberately separate:
 - `npm run -w @gpx-to-ign/web test:real` hits IGN once and writes
   `packages/web/out/ruler-page1.pdf`. 108 tiles, 0 missing, 0.93 MB at q72. Re-running it
   within one browser session costs 0 downloads — the Cache API resume path works.
+
+Rendered at 254 dpi with `pdftoppm`, the blue kilometre grid measures **400.0 px = 40.00 mm**
+between lines. The geometry is right; only printer scaling is left to check on paper.
 
 **Next, in order:**
 1. **Gate: the ruler test.** Print `packages/web/out/ruler-page1.pdf` at 100% on A4 — no

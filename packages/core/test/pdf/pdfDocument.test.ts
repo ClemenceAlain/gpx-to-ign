@@ -1,4 +1,4 @@
-import { inflateSync } from 'fflate'
+import { unzlibSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import { ArrayBufferSink, writePdf, type PdfDocument } from '../../src/pdf/pdfDocument.js'
 import { PdfPage } from '../../src/pdf/pdfPage.js'
@@ -25,7 +25,9 @@ function contentStreams(pdf: Uint8Array): string {
   while ((m = header.exec(text)) !== null) {
     const start = m.index + m[0].length
     const length = Number(m[1])
-    parts.push(latin1(inflateSync(pdf.subarray(start, start + length))))
+    // unzlib, not inflate: a raw-deflate reader accepts both and would hide the bug that
+    // shipped a PDF no viewer could open.
+    parts.push(latin1(unzlibSync(pdf.subarray(start, start + length))))
   }
   return parts.join('\n')
 }
@@ -132,5 +134,22 @@ describe('PdfDocument', () => {
 
   it('refuses an empty document', () => {
     expect(() => write(() => {})).toThrow(/at least one page/)
+  })
+})
+
+describe('content stream framing', () => {
+  it('frames content streams as zlib, which is what /FlateDecode means', () => {
+    // fflate's deflateSync emits raw RFC 1951. Poppler reports "Unknown compression method
+    // in flate stream" and renders a blank page — which is exactly what shipped once.
+    const bytes = write((d) => d.addPage((page) => page.text(50, 50, 10, 'Page 1')))
+    const text = latin1(bytes)
+    const header = /<< \/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/.exec(text)
+    expect(header).not.toBeNull()
+    const start = header!.index + header![0].length
+    const stream = bytes.subarray(start, start + Number(header![1]))
+    // RFC 1950: low nibble 8 is DEFLATE, and the two header bytes are a multiple of 31.
+    expect(stream[0]! & 0x0f).toBe(8)
+    expect(((stream[0]! << 8) | stream[1]!) % 31).toBe(0)
+    expect(latin1(unzlibSync(stream))).toContain('(Page 1) Tj')
   })
 })
