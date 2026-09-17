@@ -19,7 +19,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      - name: Unit tests
+      - name: Unit tests and UI screenshots
         run: ./gradlew :core:test :app:testDebugUnitTest
 
       - name: Build the debug APK

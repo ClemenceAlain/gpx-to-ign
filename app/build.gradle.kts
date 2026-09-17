@@ -51,6 +51,12 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
@@ -84,10 +90,20 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
 
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.platform.launcher)
+    // Screenshot rendering on the JVM: this project has no attached device and no KVM,
+    // so Robolectric draws the real Compose tree and Roborazzi writes it to PNG.
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
 
 tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
+    // Roborazzi reads these from the test JVM, not from Gradle's own properties.
+    systemProperty("robolectric.graphicsMode", "NATIVE")
+    systemProperty("roborazzi.test.record", "true")
+    systemProperty("roborazzi.output.dir", layout.buildDirectory.dir("screenshots").get().asFile.path)
 }

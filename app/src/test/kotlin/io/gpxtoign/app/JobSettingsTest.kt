@@ -1,10 +1,11 @@
 package io.gpxtoign.app
 
 import io.gpxtoign.core.tiles.MapSource
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 class JobSettingsTest {
 
@@ -41,9 +42,9 @@ class JobSettingsTest {
             marginM = 750.0, allowRotation = false, includeIndexPage = false,
             jpegQuality = 70, title = "Vercors",
         ).toJobOptions()
-        assertEquals(750.0, options.layout.marginM)
-        assertEquals(false, options.layout.allowRotation)
-        assertEquals(false, options.includeIndexPage)
+        assertEquals(750.0, options.layout.marginM, 1e-9)
+        assertFalse(options.layout.allowRotation)
+        assertFalse(options.includeIndexPage)
         assertEquals(70, options.jpegQuality)
         assertEquals("Vercors", options.title)
     }

@@ -18,10 +18,7 @@ import io.gpxtoign.core.render.ImageCodec
 import io.gpxtoign.core.render.MapRenderer
 import io.gpxtoign.core.tiles.MapSource
 import io.gpxtoign.core.tiles.TileFetcher
-import java.io.ByteArrayOutputStream
 import java.io.OutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 import kotlin.math.roundToInt
 
 data class JobOptions(
@@ -38,14 +35,16 @@ data class JobProgress(val done: Int, val total: Int, val label: String)
 data class JobEstimate(val pages: Int, val tiles: Int, val approximateBytes: Long, val angleDeg: Double)
 
 data class JobResult(
+    /** Map pages, excluding the overview. */
     val pages: Int,
     val angleDeg: Double,
     val bytesDownloaded: Long,
     val missingTiles: List<TileId>,
-    val entries: List<String>,
+    /** Pages in the finished PDF, overview included. */
+    val pdfPages: Int,
 )
 
-/** Turns parsed GPX files into a ZIP of printable A4 PDFs. */
+/** Turns parsed GPX files into one printable multi-page A4 PDF. */
 class JobRunner(
     private val fetcher: TileFetcher,
     private val codec: ImageCodec,
@@ -94,58 +93,47 @@ class JobRunner(
             matrix = TileGrid.NATIVE_MATRIX,
             quality = options.jpegQuality,
         )
+        val paper = options.paper
         val total = layout.pages.size + if (options.includeIndexPage) 1 else 0
-        val entries = mutableListOf<String>()
-        val zip = ZipOutputStream(output)
-        try {
-            if (options.includeIndexPage) {
-                onProgress(JobProgress(0, total, "Assemblage du plan d'ensemble"))
-                val name = "00-plan-ensemble.pdf"
-                zip.putNextEntry(ZipEntry(name))
-                zip.write(indexPdf(layout, options))
-                zip.closeEntry()
-                entries.add(name)
-            }
-            for (page in layout.pages) {
-                onProgress(
-                    JobProgress(
-                        entries.size, total,
-                        "Page ${page.number} sur ${layout.pages.size}",
-                    ),
-                )
-                val name = "page-%02d.pdf".format(page.number)
-                zip.putNextEntry(ZipEntry(name))
-                zip.write(pagePdf(layout, page, options, renderer))
-                zip.closeEntry()
-                entries.add(name)
-            }
-            onProgress(JobProgress(total, total, "Terminé"))
-        } finally {
-            zip.finish()
+        var done = 0
+
+        val document = PdfDocument(output, mm(paper.widthMm), mm(paper.heightMm))
+        if (options.includeIndexPage) {
+            onProgress(JobProgress(done, total, "Assemblage du plan d'ensemble"))
+            indexPage(document, layout, options)
+            done++
         }
+        for (page in layout.pages) {
+            onProgress(JobProgress(done, total, "Page ${page.number} sur ${layout.pages.size}"))
+            mapPage(document, layout, page, options, renderer)
+            done++
+        }
+        document.finish()
+        onProgress(JobProgress(total, total, "Terminé"))
+
         return JobResult(
             pages = layout.pages.size,
             angleDeg = layout.angleDeg,
             bytesDownloaded = fetcher.bytesDownloaded,
             missingTiles = renderer.missingTiles.toList(),
-            entries = entries,
+            pdfPages = total,
         )
     }
 
-    private suspend fun pagePdf(
-        layout: Layout, page: MapPage, options: JobOptions, renderer: MapRenderer,
-    ): ByteArray {
+    private suspend fun mapPage(
+        document: PdfDocument, layout: Layout, page: MapPage,
+        options: JobOptions, renderer: MapRenderer,
+    ) {
         val paper = options.paper
         val widthPx = (paper.mapWidthM / TileGrid.NATIVE_RESOLUTION).roundToInt()
         val heightPx = (paper.mapHeightM / TileGrid.NATIVE_RESOLUTION).roundToInt()
         val blocks = renderer.render(page.rect, layout.angleRad, widthPx, heightPx)
 
-        val document = PdfDocument(mm(paper.widthMm), mm(paper.heightMm))
-        val canvas = document.addPage()
-        placeBlocks(canvas, blocks, paper, widthPx, heightPx)
-        PageDecor(layout, paper, options.source.attribution, options.title)
-            .draw(canvas, page, layout.pages.size)
-        return ByteArrayOutputStream().also { document.writeTo(it) }.toByteArray()
+        document.addPage { canvas ->
+            placeBlocks(canvas, blocks, paper, widthPx, heightPx)
+            PageDecor(layout, paper, options.source.attribution, options.title)
+                .draw(canvas, page, layout.pages.size)
+        }
     }
 
     /**
@@ -161,7 +149,7 @@ class JobRunner(
         return framed to TileGrid.matrixFor(framed.width / OVERVIEW_WIDTH_PX)
     }
 
-    private suspend fun indexPdf(layout: Layout, options: JobOptions): ByteArray {
+    private suspend fun indexPage(document: PdfDocument, layout: Layout, options: JobOptions) {
         val paper = options.paper
         val (framed, matrix) = overviewFrame(layout, paper)
         val overview = MapRenderer(fetcher, codec, matrix, quality = options.jpegQuality)
@@ -169,49 +157,57 @@ class JobRunner(
         val heightPx = (widthPx * framed.height / framed.width).roundToInt().coerceAtLeast(256)
         val blocks = overview.render(framed, layout.angleRad, widthPx, heightPx)
 
-        val document = PdfDocument(mm(paper.widthMm), mm(paper.heightMm))
-        val canvas = document.addPage()
-        placeBlocks(canvas, blocks, paper, widthPx, heightPx)
+        document.addPage { canvas ->
+            placeBlocks(canvas, blocks, paper, widthPx, heightPx)
 
-        val mapX = mm(paper.safeMarginMm)
-        val mapY = mm(paper.safeMarginMm + paper.footerMm)
-        val mapW = mm(paper.mapWidthMm)
-        val mapH = mm(paper.mapHeightMm)
-        val scaleX = mapW / framed.width
-        val scaleY = mapH / framed.height
+            val mapX = mm(paper.safeMarginMm)
+            val mapY = mm(paper.safeMarginMm + paper.footerMm)
+            val mapW = mm(paper.mapWidthMm)
+            val mapH = mm(paper.mapHeightMm)
+            val scaleX = mapW / framed.width
+            val scaleY = mapH / framed.height
 
-        canvas.setStroke(0.85, 0.1, 0.1)
-        canvas.setLineWidth(1.0)
-        for (page in layout.pages) {
-            val x = mapX + (page.rect.uMin - framed.uMin) * scaleX
-            val y = mapY + (page.rect.vMin - framed.vMin) * scaleY
-            canvas.strokeRect(x, y, page.rect.width * scaleX, page.rect.height * scaleY)
-            val cx = x + page.rect.width * scaleX / 2
-            val cy = y + page.rect.height * scaleY / 2
-            canvas.setFill(1.0, 1.0, 1.0)
-            canvas.fillRect(cx - mm(4.0), cy - mm(3.0), mm(8.0), mm(6.0))
-            canvas.setStroke(0.85, 0.1, 0.1)
-            canvas.strokeRect(cx - mm(4.0), cy - mm(3.0), mm(8.0), mm(6.0))
-            canvas.setFill(0.85, 0.1, 0.1)
-            canvas.textCentered(cx, cy - mm(1.8), 12.0, page.number.toString(), bold = true)
+            for (page in layout.pages) {
+                val x = mapX + (page.rect.uMin - framed.uMin) * scaleX
+                val y = mapY + (page.rect.vMin - framed.vMin) * scaleY
+                val w = page.rect.width * scaleX
+                val h = page.rect.height * scaleY
+                // A white halo under the outline, so it reads over dark forest and rock too.
+                canvas.setStroke(1.0, 1.0, 1.0)
+                canvas.setLineWidth(3.5)
+                canvas.strokeRect(x, y, w, h)
+                canvas.setStroke(0.85, 0.1, 0.1)
+                canvas.setLineWidth(1.6)
+                canvas.strokeRect(x, y, w, h)
+                val cx = x + page.rect.width * scaleX / 2
+                val cy = y + page.rect.height * scaleY / 2
+                canvas.setFill(1.0, 1.0, 1.0)
+                canvas.fillRect(cx - mm(4.0), cy - mm(3.0), mm(8.0), mm(6.0))
+                canvas.strokeRect(cx - mm(4.0), cy - mm(3.0), mm(8.0), mm(6.0))
+                canvas.setFill(0.85, 0.1, 0.1)
+                canvas.textCentered(cx, cy - mm(1.8), 12.0, page.number.toString(), bold = true)
+            }
+            canvas.setStroke(0.0, 0.0, 0.0)
+            canvas.setLineWidth(0.6)
+            canvas.strokeRect(mapX, mapY, mapW, mapH)
+
+            canvas.setFill(0.0, 0.0, 0.0)
+            val baseline = mm(paper.safeMarginMm + 2.5)
+            canvas.text(mapX, baseline + mm(4.0), 10.0, "Plan d'ensemble", bold = true)
+            options.title?.let {
+                canvas.text(
+                    mapX + canvas.textWidth("Plan d'ensemble  ", 10.0, bold = true),
+                    baseline + mm(4.0), 9.0, it,
+                )
+            }
+            canvas.textRight(
+                mapX + mapW, baseline + mm(4.0), 7.5,
+                "${layout.pages.size} page${if (layout.pages.size > 1) "s" else ""} A4 à " +
+                    "1:${paper.scaleDenominator} · rotation " +
+                    "${((360.0 - layout.angleDeg) % 360.0).roundToInt()}° · " +
+                    options.source.attribution,
+            )
         }
-        canvas.setStroke(0.0, 0.0, 0.0)
-        canvas.setLineWidth(0.6)
-        canvas.strokeRect(mapX, mapY, mapW, mapH)
-
-        canvas.setFill(0.0, 0.0, 0.0)
-        val baseline = mm(paper.safeMarginMm + 2.5)
-        canvas.text(mapX, baseline + mm(4.0), 10.0, "Plan d'ensemble", bold = true)
-        options.title?.let {
-            canvas.text(mapX + canvas.textWidth("Plan d'ensemble  ", 10.0, bold = true), baseline + mm(4.0), 9.0, it)
-        }
-        canvas.textRight(
-            mapX + mapW, baseline + mm(4.0), 7.5,
-            "${layout.pages.size} page${if (layout.pages.size > 1) "s" else ""} A4 à " +
-                "1:${paper.scaleDenominator} · " +
-                "rotation ${((360.0 - layout.angleDeg) % 360.0).roundToInt()}° · ${options.source.attribution}",
-        )
-        return ByteArrayOutputStream().also { document.writeTo(it) }.toByteArray()
     }
 
     private fun placeBlocks(

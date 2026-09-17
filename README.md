@@ -1,7 +1,7 @@
 # gpx-to-ign
 
-Turns GPX traces into a ZIP of printable A4 PDFs at true 1:25000, cut from the IGN SCAN25
-map, using as few pages as possible. Built for printing hiking maps.
+Turns GPX traces into one printable multi-page A4 PDF at true 1:25000, cut from the IGN
+SCAN25 map, using as few pages as possible. Built for printing hiking maps.
 
 The GPX only decides where the pages go — the trace is never drawn on the map.
 
@@ -20,17 +20,18 @@ Android may refuse to install over a previous version. Uninstall the old one fir
    to the app from any other app.
 2. Adjust the margin (default 500 m of map around the trace) and whether the pages may
    rotate.
-3. Check the page count and download size, then tap **Générer le ZIP de PDF** and choose
-   where to save it.
+3. Check the page count and download size, then tap **Générer le PDF** and choose where to
+   save it.
 
-Each PDF is one A4 page carrying:
+The PDF opens on an overview page showing every page footprint, numbered, then carries one
+A4 page per map sheet. Each map page has:
 
 - the SCAN25 map at exactly 1:25000, at its native 2.5 m per pixel (254 dpi),
 - the Lambert-93 kilometre grid, so 1 km is always 40 mm on paper,
 - a north arrow showing the page rotation, a scale bar and the page number,
 - tabs naming the page that continues the map off each edge.
 
-A `00-plan-ensemble.pdf` overview shows all the page footprints, numbered.
+Send the whole file to a printer and you get the book in order.
 
 ## How the page count is minimised
 
@@ -85,7 +86,7 @@ The same engine runs on the desktop, which is how the PDFs get checked during de
 ```
 ./gradlew :cli:installDist
 ./cli/build/install/cli/bin/cli --help
-./cli/build/install/cli/bin/cli -o cartes.zip --title "Tour du Mont Blanc" trace.gpx
+./cli/build/install/cli/bin/cli -o cartes.pdf --title "Tour du Mont Blanc" trace.gpx
 ./cli/build/install/cli/bin/cli --dry-run --explain trace.gpx
 ```
 
@@ -95,9 +96,14 @@ for every candidate rotation angle.
 ## Development
 
 ```
-./gradlew :core:test         # geodesy, GPX parsing, page cover, PDF writer, renderer
-./gradlew :app:assembleDebug # APK at app/build/outputs/apk/debug/
+./gradlew :core:test              # geodesy, GPX parsing, page cover, PDF writer, renderer
+./gradlew :app:testDebugUnitTest  # app logic, plus screenshots of every screen state
+./gradlew :app:assembleDebug      # APK at app/build/outputs/apk/debug/
 ```
+
+There is no emulator in this project's environment, so the UI is checked by rendering it:
+`:app:testDebugUnitTest` drives the real Compose tree through Robolectric and writes every
+screen state to `app/build/screenshots/`.
 
 - `core` is plain Kotlin on the JVM with no Android dependency: projection, tiles, page
   layout, rendering and the PDF writer all live there and are unit tested.
@@ -106,7 +112,9 @@ for every candidate rotation angle.
 
 The PDF writer is hand-rolled rather than a dependency: the app only ever places
 already-encoded JPEGs and draws a few lines, so the map is embedded as `DCTDecode` without
-recompression, and the output is byte-identical on desktop and on a phone.
+recompression, and the output is byte-identical on desktop and on a phone. It serialises
+each page as soon as it is drawn, so a thirty-page book never holds more than one page of
+raster in memory.
 
 ### Signing releases with your own key
 

@@ -12,11 +12,11 @@ import kotlin.system.exitProcess
 import kotlinx.coroutines.runBlocking
 
 private const val USAGE = """
-gpx-to-ign — printable IGN 1:25000 A4 maps covering one or more GPX traces
+gpx-to-ign — one printable IGN 1:25000 A4 PDF covering one or more GPX traces
 
 usage: gpx-to-ign [options] <trace.gpx> [more.gpx ...]
 
-  -o, --out FILE      output ZIP (default: cartes-ign.zip)
+  -o, --out FILE      output PDF (default: cartes-ign.pdf)
   -m, --margin M      clearance around the trace in metres (default: 500)
       --no-rotation   keep the maps north-up instead of minimising the page count
       --source ID     ${'$'}{sources}
@@ -35,7 +35,7 @@ fun main(args: Array<String>) = runBlocking {
         return@runBlocking
     }
 
-    var out = File("cartes-ign.zip")
+    var out = File("cartes-ign.pdf")
     var margin = 500.0
     var rotation = true
     var source = MapSource.SCAN25
@@ -112,7 +112,7 @@ fun main(args: Array<String>) = runBlocking {
         runner.run(layout, options, stream) { println("  ${it.done}/${it.total} ${it.label}") }
     }
     println(
-        "wrote $out: ${result.entries.size} PDF(s), %.1f MB downloaded"
+        "wrote $out: ${result.pdfPages} A4 page(s), %.1f MB downloaded"
             .format(result.bytesDownloaded / 1e6),
     )
     if (result.missingTiles.isNotEmpty()) {
