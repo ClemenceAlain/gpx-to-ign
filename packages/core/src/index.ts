@@ -3,6 +3,7 @@
  * stay where they were designed rather than wherever a file happened to sit.
  */
 export * from './geo/lambert93.js'
+export * from './job.js'
 export * from './geo/tileGrid.js'
 export * from './gpx/gpx.js'
 export * from './gpx/xml.js'
