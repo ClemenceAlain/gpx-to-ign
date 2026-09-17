@@ -11,6 +11,9 @@
     "test:real": "playwright test -c playwright.real.config.ts"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/share": "^8.0.2",
     "@gpx-to-ign/core": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

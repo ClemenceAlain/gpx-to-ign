@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Cartes IGN</string>
+    <string name="title_activity_main">Cartes IGN</string>
+    <string name="package_name">io.gpxtoign.app</string>
+    <string name="custom_url_scheme">io.gpxtoign.app</string>
+</resources>

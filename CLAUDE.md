@@ -147,6 +147,7 @@ watched fail, then the implementation:
 | job | `packages/core/src/job.ts` — plan / estimate / run, checkpointed |
 | web | `packages/web` — the real app: screen, preview, workers, platform seams |
 | cli | `packages/cli` — same flags the Kotlin CLI took, Skia codec, filesystem tile cache |
+| mobile | `packages/mobile` — Capacitor over `packages/web/dist`. **APK not yet built.** |
 
 **Decisions taken while porting, do not re-litigate:**
 - The raster is `RgbaImage` (8-bit RGBA in a `Uint8ClampedArray`), not Kotlin's packed ARGB
@@ -222,9 +223,24 @@ TypeScript parameter properties. Two consequences worth knowing:
 primed by either serves both. The Normandy traverse is 452 tiles / 33 MB; the second run
 takes 3.5 s and downloads nothing.
 
+**This machine has a JRE and no `javac`**, so nothing Android can be compiled here.
+`/usr/lib/jvm/java-21-openjdk-amd64` ships no compiler, and Gradle picks the JVM it runs on
+whatever the toolchain settings say. Kotlin `:core:test` still works because kotlinc needs
+no javac; `assembleDebug` does not. Fix with `sudo apt install openjdk-21-jdk`. Do not work
+around this in the Gradle files — three attempts (foojay resolver, `auto-detect=false`, a
+declared Java 17 toolchain) each moved the failure one module along and left the generated
+project less standard.
+
+**Unverified, and honestly so:** `MainActivity.java` and the APK build. The Java reads
+shared `content://` URIs — the one thing a WebView cannot do — and dispatches a `gpxShared`
+window event. The listener goes on `bridgeBuilder`, not the bridge, because
+`BridgeActivity.onCreate` creates the bridge and starts the page load, so a listener added
+after it can miss the first page. `BridgeActivity.load()` calls `onNewIntent(getIntent())`
+itself, which is what picks up a share that launched the app.
+
 **Next, in order:**
-1. `packages/mobile` — Capacitor wrapping `packages/web/dist`, the `ACTION_SEND` intent
-   filters, `@capacitor/filesystem` + `@capacitor/share` for output.
+1. Install a JDK, then `npm run -w @gpx-to-ign/mobile apk` and check the share intent and
+   the Documents write on a real phone.
 2. CI: `ci.yml` (typecheck, lint, vitest, vite build, Playwright screenshots),
    `pages.yml`, `release.yml`.
 3. Cut over: delete the Kotlin tree, rewrite `README.md`, merge into `main`.

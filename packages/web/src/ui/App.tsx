@@ -11,6 +11,7 @@ import {
   type JobEstimate,
   type JobOptions,
 } from '@gpx-to-ign/core'
+import { isNative, nativePdfTarget, onSharedGpx } from '../platform/native.js'
 import { keepAwake, pickPdfTarget } from '../platform/savePdf.js'
 import type { JobMessage } from '../worker/jobProtocol.js'
 import { QUALITY_PRESETS, loadSettings, saveSettings, type Settings } from '../platform/settings.js'
@@ -126,32 +127,59 @@ export function App(): React.JSX.Element {
     [settings, source],
   )
 
-  const addFiles = useCallback(async (picked: FileList | null) => {
-    if (picked === null || picked.length === 0) return
-    // Snapshot first: the caller resets the input to allow re-picking the same file, and
-    // that empties this live FileList before the first `await file.text()` returns.
-    const chosen = [...picked]
-    const loaded: LoadedFile[] = []
-    for (const file of chosen) {
-      try {
-        const gpx = parseGpx(file.name, await file.text())
-        loaded.push({ gpx, points: pointCount(gpx) })
-      } catch (e) {
-        setError(`${file.name} : ${e instanceof Error ? e.message : String(e)}`)
-        return
-      }
-    }
+  const addParsed = useCallback((loaded: LoadedFile[]) => {
     setError(null)
     setJob(null)
     setFiles((current) => [...current, ...loaded])
   }, [])
+
+  /** "Share to Cartes IGN" from another app. On the web this listener never fires. */
+  useEffect(
+    () =>
+      onSharedGpx((shared) => {
+        const loaded: LoadedFile[] = []
+        for (const file of shared) {
+          try {
+            const gpx = parseGpx(file.name, file.text)
+            loaded.push({ gpx, points: pointCount(gpx) })
+          } catch (e) {
+            setError(`${file.name} : ${e instanceof Error ? e.message : String(e)}`)
+            return
+          }
+        }
+        addParsed(loaded)
+      }),
+    [addParsed],
+  )
+
+  const addFiles = useCallback(
+    async (picked: FileList | null) => {
+      if (picked === null || picked.length === 0) return
+      // Snapshot first: the caller resets the input to allow re-picking the same file, and
+      // that empties this live FileList before the first `await file.text()` returns.
+      const chosen = [...picked]
+      const loaded: LoadedFile[] = []
+      for (const file of chosen) {
+        try {
+          const gpx = parseGpx(file.name, await file.text())
+          loaded.push({ gpx, points: pointCount(gpx) })
+        } catch (e) {
+          setError(`${file.name} : ${e instanceof Error ? e.message : String(e)}`)
+          return
+        }
+      }
+      addParsed(loaded)
+    },
+    [addParsed],
+  )
 
   const generate = useCallback(async () => {
     if (planned.status !== 'ready') return
     // The picker must be asked while the click's activation is still live: after a job it
     // throws, having already spent the download.
     const base = files[0]?.gpx.name.replace(/\.gpx$/i, '') ?? 'cartes'
-    const target = await pickPdfTarget(`${base}.pdf`)
+    // Android writes to Documents and offers the share sheet; the browser asks where first.
+    const target = isNative() ? nativePdfTarget(`${base}.pdf`) : await pickPdfTarget(`${base}.pdf`)
     if (target === null) return
 
     const release = await keepAwake()
