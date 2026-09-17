@@ -47,6 +47,17 @@ async function open(page: Page): Promise<void> {
   await page.goto('/')
 }
 
+test('names itself and carries an icon', async ({ page }) => {
+  await open(page)
+  await expect(page).toHaveTitle(/^Cartes IGN/)
+  // A tab truncates from the right, so the name has to come first.
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', 'icon.svg')
+  await expect(page.locator('link[rel="manifest"]')).toHaveCount(1)
+  const icon = await page.request.get('/icon.svg')
+  expect(icon.status()).toBe(200)
+  expect(icon.headers()['content-type']).toContain('image/svg+xml')
+})
+
 test('plans a trace without touching the network', async ({ page }) => {
   await open(page)
   // Any request to IGN before the user has validated is the bug this app exists to avoid.

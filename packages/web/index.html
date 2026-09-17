@@ -3,7 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>gpx-to-ign</title>
+
+    <!-- Leads with the name, because a tab truncates from the right. -->
+    <title>Cartes IGN — 1:25000 à imprimer</title>
+    <meta
+      name="description"
+      content="Des traces GPX vers des pages A4 au 1:25000 découpées dans le SCAN25 de l'IGN, prêtes à imprimer. Tout se passe dans le navigateur."
+    />
+
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon-512.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+
+    <!-- The grouped background, so the Android address bar matches the page it frames. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f2f7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
   </head>
   <body>
     <div id="root"></div>
