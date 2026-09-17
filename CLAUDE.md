@@ -147,7 +147,7 @@ watched fail, then the implementation:
 | job | `packages/core/src/job.ts` — plan / estimate / run, checkpointed |
 | web | `packages/web` — the real app: screen, preview, workers, platform seams |
 | cli | `packages/cli` — same flags the Kotlin CLI took, Skia codec, filesystem tile cache |
-| mobile | `packages/mobile` — Capacitor over `packages/web/dist`. **APK not yet built.** |
+| mobile | `packages/mobile` — Capacitor over `packages/web/dist`; debug and release APKs build |
 
 **Decisions taken while porting, do not re-litigate:**
 - The raster is `RgbaImage` (8-bit RGBA in a `Uint8ClampedArray`), not Kotlin's packed ARGB
@@ -223,20 +223,28 @@ TypeScript parameter properties. Two consequences worth knowing:
 primed by either serves both. The Normandy traverse is 452 tiles / 33 MB; the second run
 takes 3.5 s and downloads nothing.
 
-**This machine has a JRE and no `javac`**, so nothing Android can be compiled here.
-`/usr/lib/jvm/java-21-openjdk-amd64` ships no compiler, and Gradle picks the JVM it runs on
-whatever the toolchain settings say. Kotlin `:core:test` still works because kotlinc needs
-no javac; `assembleDebug` does not. Fix with `sudo apt install openjdk-21-jdk`. Do not work
-around this in the Gradle files — three attempts (foojay resolver, `auto-detect=false`, a
-declared Java 17 toolchain) each moved the failure one module along and left the generated
-project less standard.
+**Gradle caches which JDKs exist.** Installing `openjdk-21-jdk` while a daemon is running
+changes nothing — it keeps reporting `does not provide the required capabilities:
+[JAVA_COMPILER]` about the very JDK that now has a compiler. `./gradlew --stop` first.
 
-**Unverified, and honestly so:** `MainActivity.java` and the APK build. The Java reads
-shared `content://` URIs — the one thing a WebView cannot do — and dispatches a `gpxShared`
-window event. The listener goes on `bridgeBuilder`, not the bridge, because
-`BridgeActivity.onCreate` creates the bridge and starts the page load, so a listener added
-after it can miss the first page. `BridgeActivity.load()` calls `onNewIntent(getIntent())`
-itself, which is what picks up a share that launched the app.
+**Groovy's optional parentheses bite in `app/build.gradle`.**
+`versionCode (a ?: b).toInteger()` parses as `versionCode(a ?: b).toInteger()` — it assigns
+an Object, then calls a method on the null return, and fails with "Value is null". Wrap the
+whole argument: `versionCode Integer.parseInt(...)`.
+
+**`MainActivity.java` is the only Java**, and it does the one job a WebView cannot: read the
+shared `content://` URIs and dispatch a `gpxShared` window event. The listener goes on
+`bridgeBuilder`, not the bridge, because `BridgeActivity.onCreate` creates the bridge and
+starts the page load, so a listener added after it can miss the first page.
+`BridgeActivity.load()` calls `onNewIntent(getIntent())` itself, which is what picks up a
+share that launched the app.
+
+**Built and checked, 2026-09-17:** `assembleDebug` (4.3 MB), `assembleRelease` and
+`lintVitalRelease` all pass. The APK carries the SEND / SEND_MULTIPLE / VIEW filters for
+`application/gpx+xml`, and `assets/public/` holds the app plus both workers as separate
+chunks. **Still unverified: everything that needs a device** — the share intent actually
+arriving, module workers running in the Android WebView, the Documents write and the share
+sheet. There is no emulator or system image in `/home/clemence/Android`.
 
 **CI.** `ci.yml` runs format, typecheck, vitest, the web build and the Playwright suite on
 Node 22, then builds the debug APK on a runner with a real JDK. `pages.yml` deploys the web
@@ -248,9 +256,7 @@ never declared, so `npm run format:check` passed here and would have failed on t
 green-looking CI run.
 
 **Next, in order:**
-1. Install a JDK (`sudo apt install openjdk-21-jdk`), then
-   `npm run apk --workspace @gpx-to-ign/mobile` and check the share intent and the Documents
-   write on a real phone. Until then `MainActivity.java` has never been compiled.
+1. Install the APK on a phone and check the four device-only paths above.
 2. Cut over: delete the Kotlin tree, rewrite `README.md`, merge into `main`.
 
 **Verified by hand, do not re-check:**

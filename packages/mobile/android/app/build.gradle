@@ -14,8 +14,11 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Supplied by the release workflow: the name from the tag, the code from the run
         // number, which is the only counter that is guaranteed to keep going up.
-        versionCode (project.findProperty('appVersionCode') ?: '1').toString().toInteger()
-        versionName (project.findProperty('appVersionName') ?: '0.1.0').toString()
+        // Parenthesise the whole argument: `versionCode (a ?: b).toInteger()` parses as
+        // `versionCode(a ?: b).toInteger()` in Groovy, which assigns an Object and then
+        // calls a method on null.
+        versionCode Integer.parseInt(project.findProperty('appVersionCode') ?: '1')
+        versionName String.valueOf(project.findProperty('appVersionName') ?: '0.1.0')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
