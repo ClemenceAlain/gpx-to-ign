@@ -18,12 +18,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: gradle/actions/setup-gradle@v6
+
+      - run: npm ci
 
       - name: Work out the version
         id: version
@@ -33,26 +40,40 @@ jobs:
           echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
           echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
+      - name: Tests
+        run: |
+          npm run typecheck
+          npx vitest run
+
+      # Tested in the shell, not in `if:` — a step's own `env` block is not visible to its
+      # own condition, so the old workflow's `if: env.KEYSTORE_BASE64 != ''` never fired and
+      # every release was silently debug-signed.
       - name: Restore the signing key, if one is configured
-        if: env.KEYSTORE_BASE64 != ''
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > packages/mobile/android/release.keystore
+            echo "signing with the configured release key"
+          else
+            echo "no KEYSTORE_BASE64 secret; the APK will be debug-signed"
+          fi
 
-      - name: Unit tests
-        run: ./gradlew :core:test :app:testDebugUnitTest
+      - name: Sync the web build into the Android project
+        run: npm run sync --workspace @gpx-to-ign/mobile
 
       - name: Build the release APK
+        working-directory: packages/mobile/android
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew :app:assembleRelease \
+          ./gradlew assembleRelease \
             -PappVersionName='${{ steps.version.outputs.name }}' \
             -PappVersionCode='${{ steps.version.outputs.code }}'
           mv app/build/outputs/apk/release/app-release.apk \
-             gpx-to-ign-${{ steps.version.outputs.tag }}.apk
+             "$GITHUB_WORKSPACE/gpx-to-ign-${{ steps.version.outputs.tag }}.apk"
 
       - name: Publish the release
         env:

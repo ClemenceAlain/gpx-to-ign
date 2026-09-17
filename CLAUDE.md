@@ -238,12 +238,20 @@ window event. The listener goes on `bridgeBuilder`, not the bridge, because
 after it can miss the first page. `BridgeActivity.load()` calls `onNewIntent(getIntent())`
 itself, which is what picks up a share that launched the app.
 
+**CI.** `ci.yml` runs format, typecheck, vitest, the web build and the Playwright suite on
+Node 22, then builds the debug APK on a runner with a real JDK. `pages.yml` deploys the web
+app (needs Pages enabled, source "GitHub Actions"). `release.yml` tags, signs and publishes
+the APK. Every step except the two Gradle ones was replayed locally from a clean `npm ci`.
+
+**Run `npm ci` before trusting a workflow.** Prettier was used through `npx` for an hour and
+never declared, so `npm run format:check` passed here and would have failed on the first
+green-looking CI run.
+
 **Next, in order:**
-1. Install a JDK, then `npm run -w @gpx-to-ign/mobile apk` and check the share intent and
-   the Documents write on a real phone.
-2. CI: `ci.yml` (typecheck, lint, vitest, vite build, Playwright screenshots),
-   `pages.yml`, `release.yml`.
-3. Cut over: delete the Kotlin tree, rewrite `README.md`, merge into `main`.
+1. Install a JDK (`sudo apt install openjdk-21-jdk`), then
+   `npm run apk --workspace @gpx-to-ign/mobile` and check the share intent and the Documents
+   write on a real phone. Until then `MainActivity.java` has never been compiled.
+2. Cut over: delete the Kotlin tree, rewrite `README.md`, merge into `main`.
 
 **Verified by hand, do not re-check:**
 - SCAN25 + `ign_scan_ws` works today; CORS is `access-control-allow-origin: *`.

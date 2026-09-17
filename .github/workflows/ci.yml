@@ -7,38 +7,80 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  checks:
+    name: Types, format and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Formatting
+        run: npm run format:check
+
+      # Builds core to dist on the way, which the CLI needs to run at all.
+      - name: Types
+        run: npm run typecheck
+
+      - name: Core and CLI tests
+        run: npx vitest run
+
+      - name: Web build
+        run: npm run build --workspace @gpx-to-ign/web
+
+      # Chromium only: the app targets a Chromium WebView on Android and Chrome on the
+      # desktop, and the tests assert on Chrome's own JPEG encoder.
+      - name: Browser tests
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test --workspace @gpx-to-ign/web
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: packages/web/playwright-report
+
+  apk:
+    name: Debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: gradle/actions/setup-gradle@v6
 
-      - name: Unit tests and UI screenshots
-        run: ./gradlew :core:test :app:testDebugUnitTest
+      - run: npm ci
+
+      # Builds the web app and copies it into the Android project.
+      - name: Sync the web build into the Android project
+        run: npm run sync --workspace @gpx-to-ign/mobile
 
       - name: Build the debug APK
-        run: ./gradlew :app:assembleDebug
+        working-directory: packages/mobile/android
+        run: ./gradlew assembleDebug
 
       # The same lint gate assembleRelease enforces, so a release never fails alone.
       - name: Lint the release build
-        run: ./gradlew :app:lintVitalRelease
+        working-directory: packages/mobile/android
+        run: ./gradlew lintVitalRelease
 
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: gpx-to-ign-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: test-report
-          path: |
-            core/build/reports/tests/test
-            app/build/reports/tests/testDebugUnitTest
+          path: packages/mobile/android/app/build/outputs/apk/debug/app-debug.apk
