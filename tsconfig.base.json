@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    // DOM carries fetch, AbortController and the timer globals, which `core` needs and
+    // which TypeScript ships nowhere else. It also carries `document`; keep `core` free of
+    // the real DOM by review, not by the compiler.
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,

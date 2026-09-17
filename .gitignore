@@ -10,3 +10,4 @@ dist/
 
 # Tile cache — never commit ~70 MB of IGN rasters
 .tilecache/
+*.tsbuildinfo

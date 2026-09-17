@@ -7,7 +7,12 @@ import { HttpTileFetcher, NoTilesFetcher, TileFetchError } from '../../src/tiles
 const tile = { matrix: 16, col: 1565, row: 8542 }
 
 function imageResponse(bytes: Uint8Array, status = 200): Response {
-  return new Response(bytes, { status, headers: { 'content-type': 'image/png' } })
+  // A detached copy: TS 5.7 made Uint8Array generic over its buffer, and BodyInit still
+  // wants a plain ArrayBuffer.
+  return new Response(bytes.slice().buffer as ArrayBuffer, {
+    status,
+    headers: { 'content-type': 'image/png' },
+  })
 }
 
 describe('MapSource', () => {
