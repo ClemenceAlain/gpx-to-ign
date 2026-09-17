@@ -120,6 +120,7 @@ export function App(): React.JSX.Element {
       source,
       jpegQuality: settings.jpegQuality,
       includeIndexPage: settings.includeIndexPage,
+      drawTrack: settings.drawTrack,
       title: settings.title.trim() === '' ? null : settings.title.trim(),
     }),
     [settings, source],
@@ -299,6 +300,15 @@ export function App(): React.JSX.Element {
                 />
               </SettingsRow>
               <RowSeparator />
+              <SettingsRow title="Tracé GPX sur les cartes">
+                <AppSwitch
+                  label="Tracé GPX sur les cartes"
+                  testId="draw-track"
+                  checked={settings.drawTrack}
+                  onChange={(drawTrack) => setSettings((s) => ({ ...s, drawTrack }))}
+                />
+              </SettingsRow>
+              <RowSeparator />
               <SettingsRow title="Plan d'ensemble dans le PDF">
                 <AppSwitch
                   label="Plan d'ensemble dans le PDF"
@@ -326,8 +336,9 @@ export function App(): React.JSX.Element {
             </Section>
             <SectionFootnote>
               La rotation cherche l’orientation qui tient sur le moins de pages. Une flèche indique
-              le nord sur chaque carte. Le plan d’ensemble est affiché ci-dessous ; ne l’ajoutez au
-              PDF que pour l’imprimer.
+              le nord sur chaque carte. Le tracé s’imprime en violet et masque un peu la carte
+              dessous. Le plan d’ensemble est affiché ci-dessous ; ne l’ajoutez au PDF que pour
+              l’imprimer.
             </SectionFootnote>
 
             <SectionHeader>Source</SectionHeader>

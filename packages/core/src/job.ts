@@ -17,6 +17,7 @@ import {
   type MapPage,
   type PaperSpec,
 } from './layout/pageLayout.js'
+import type { PagePoint } from './layout/planPreview.js'
 import { centerU, centerV, expand, height, rect, width, type Rect } from './layout/rect.js'
 import { PageDecor, mm } from './pdf/pageDecor.js'
 import { PdfDocument, type ByteSink } from './pdf/pdfDocument.js'
@@ -47,6 +48,14 @@ export interface JobOptions {
    * where it is actually useful, and a printed copy costs a page and a download.
    */
   readonly includeIndexPage: boolean
+  /**
+   * Print the GPX trace over the map pages.
+   *
+   * Off by default, and that default is the old invariant: the trace's job is to decide
+   * where the pages go, and a magenta line over 1:25000 detail hides as much as it explains.
+   * Some walks want it anyway.
+   */
+  readonly drawTrack: boolean
   readonly title: string | null
 }
 
@@ -151,6 +160,7 @@ export function jobIdOf(layout: Layout, options: JobOptions): string {
     options.source.apiKey ?? '',
     String(options.jpegQuality),
     String(options.includeIndexPage),
+    String(options.drawTrack),
     options.paper.widthMm,
     options.paper.heightMm,
     options.paper.safeMarginMm,
@@ -299,6 +309,7 @@ export class JobRunner {
         paper,
         attribution: options.source.attribution,
         title: options.title,
+        track: options.drawTrack ? trackOnPage(layout) : null,
       }).draw(canvas, page, layout.pages.length)
     })
     return saved !== null && saved !== undefined
@@ -384,6 +395,16 @@ export class JobRunner {
       )
     })
   }
+}
+
+/** Every leg in the page frame, which is the only frame `PageDecor` knows about. */
+function trackOnPage(layout: Layout): PagePoint[][] {
+  return layout.trackSegments().map((leg) =>
+    leg.map((p) => {
+      const [u, v] = layout.toPage(p)
+      return { u, v }
+    }),
+  )
 }
 
 function placeBlocks(

@@ -20,6 +20,7 @@ test('writes a printable book from real SCAN25 tiles', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('gpx').setInputFiles(FIXTURE)
   await expect(page.getByTestId('preview')).toBeVisible()
+  if (process.env['DRAW_TRACK'] === '1') await page.getByTestId('draw-track').click()
 
   const download = page.waitForEvent('download')
   await page.getByTestId('generate').click()

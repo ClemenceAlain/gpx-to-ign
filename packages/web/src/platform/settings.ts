@@ -10,6 +10,7 @@ export interface Settings {
   readonly marginM: number
   readonly allowRotation: boolean
   readonly includeIndexPage: boolean
+  readonly drawTrack: boolean
   readonly jpegQuality: number
   readonly sourceId: string
   readonly apiKey: string
@@ -20,6 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   marginM: 500,
   allowRotation: true,
   includeIndexPage: false,
+  drawTrack: false,
   jpegQuality: 72,
   sourceId: SCAN25.id,
   apiKey: SCAN25.apiKey ?? '',

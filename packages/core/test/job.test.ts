@@ -75,6 +75,7 @@ function options(overrides: Partial<JobOptions> = {}): JobOptions {
     source: SCAN25,
     jpegQuality: 72,
     includeIndexPage: false,
+    drawTrack: false,
     title: null,
     ...overrides,
   }
@@ -123,6 +124,7 @@ describe('jobIdOf', () => {
     const base = jobIdOf(layout, options())
     expect(jobIdOf(layout, options({ jpegQuality: 85 }))).not.toBe(base)
     expect(jobIdOf(layout, options({ includeIndexPage: true }))).not.toBe(base)
+    expect(jobIdOf(layout, options({ drawTrack: true }))).not.toBe(base)
     expect(jobIdOf(layout, options({ source: { ...SCAN25, apiKey: 'other' } }))).not.toBe(base)
     const wider = plan(files, A4_25K, { ...DEFAULT_LAYOUT_OPTIONS, marginM: 1_200 })
     expect(jobIdOf(wider, options())).not.toBe(base)
@@ -157,6 +159,26 @@ describe('estimate', () => {
 })
 
 describe('run', () => {
+  it('leaves the map pages bare unless the trace is asked for', async () => {
+    const bare = new ArrayBufferSink()
+    await new JobRunner({ fetcher: new CountingFetcher(), codec: stubCodec }).run(
+      layout,
+      options(),
+      bare,
+    )
+    const drawn = new ArrayBufferSink()
+    await new JobRunner({ fetcher: new CountingFetcher(), codec: stubCodec }).run(
+      layout,
+      options({ drawTrack: true }),
+      drawn,
+    )
+    const violet = '0.3500 0.0000 0.7500 RG'
+    expect(operators(bare.toBytes())).not.toContain(violet)
+    expect(operators(drawn.toBytes())).toContain(violet)
+    // The trace only ever adds ink; it must not move a page or change the tile set.
+    expect(drawn.toBytes().length).toBeGreaterThan(bare.toBytes().length)
+  })
+
   it('writes one PDF page per map page', async () => {
     const fetcher = new CountingFetcher()
     const runner = new JobRunner({ fetcher, codec: stubCodec })

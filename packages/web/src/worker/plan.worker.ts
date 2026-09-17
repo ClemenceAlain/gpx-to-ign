@@ -52,6 +52,9 @@ self.onmessage = (event: MessageEvent<PlanRequest>) => {
         source: request.source,
         jpegQuality: request.jpegQuality,
         includeIndexPage: request.includeIndexPage,
+        // The trace costs ink, never a tile or a byte of download, so the estimate is the
+        // same either way and the planner need not be told.
+        drawTrack: false,
         title: null,
       }),
       preview: planPreview(layout),

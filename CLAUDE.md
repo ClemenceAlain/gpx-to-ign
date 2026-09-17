@@ -8,8 +8,14 @@ Being rebuilt from Kotlin to a TypeScript monorepo — see `REBUILD-PLAN.md`.
 - **1 km must print at exactly 40.0 mm.** A4 210x297 mm, 5 mm safe margin, 10 mm footer
   => map area 200x277 mm => exactly 5000x6925 m at 1:25000 => 2000x2770 px at 2.5 m/px
   => 254 dpi with no upsampling. Every one of those numbers is load-bearing.
-- **The GPX trace is never drawn on the map pages.** It only drives the layout. It *is*
-  drawn in the on-screen preview; that inconsistency is deliberate and was accepted.
+- **The GPX trace is off the map pages by default.** It drives the layout; printing it over
+  1:25000 detail hides as much as it explains. `drawTrack` turns it on (asked for
+  2026-09-17) and **defaults to false**, so the default output is what it always was. It is
+  always drawn in the on-screen preview.
+- **The printed trace is violet `(0.35, 0, 0.75)`, never magenta.** SCAN25 spends magenta on
+  **GR waymarking** — exactly the paths a walker's GPX follows — so the first attempt was
+  indistinguishable from the map under it. Violet plus a white halo is legible over woodland,
+  hillshade and road fill alike.
 - **Plans are deterministic.** Same input, same plan, every time. The resumable-job design
   depends on it: a resumed job replans and must land on the identical tile set.
 - **The UI is French.**
@@ -36,6 +42,7 @@ Each of these came from a measurement, not a guess. Changing one silently degrad
 | `pageBytesAt` curve | q50->0.71 MB … q90->1.49 MB | Re-measured on the browser encoder, 2026-09-17. See below |
 | `OVERVIEW_WIDTH_PX` | `1400` | At print resolution the overview cost 329 extra tiles; 93 now |
 | `overviewQuality` | `max(q - 12, 45)` | Overview tolerates more compression than map pages |
+| Trace ink | violet `(0.35, 0, 0.75)`, 1.4 pt on a 3.2 pt white halo | Magenta is SCAN25's GR waymarking |
 | JPEG chroma | **4:2:0** — the browser gives nothing else | See below. Was 4:4:4 under Kotlin |
 | Densify / dedupe | 50 m / 5 m | Packing resolution |
 | Fetch tuning | concurrency 6, 4 attempts, 400ms<<(n-1) backoff, retry 429/5xx only | The Geoplateforme throttles aggressive clients and publishes no quota |

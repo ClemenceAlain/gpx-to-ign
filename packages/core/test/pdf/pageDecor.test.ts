@@ -7,11 +7,24 @@ import {
   pageFrame,
   type MapPage,
 } from '../../src/layout/pageLayout.js'
-import { PageDecor, mm } from '../../src/pdf/pageDecor.js'
+import { PageDecor, TRACK_RGB, mm } from '../../src/pdf/pageDecor.js'
 import { PdfPage } from '../../src/pdf/pdfPage.js'
 import { fmt } from '../../src/pdf/format.js'
 import { winAnsi } from '../../src/pdf/metrics.js'
 import { rect } from '../../src/layout/rect.js'
+import type { PagePoint } from '../../src/layout/planPreview.js'
+
+/** A leg crossing the page, given in page-frame metres. */
+function leg(...points: readonly (readonly [number, number])[]): PagePoint[] {
+  return points.map(([u, v]) => ({ u, v }))
+}
+
+/** Every `x1 y1 m x2 y2 l S` in the stream — the operator `PdfPage.line` emits. */
+function strokedSegments(content: string): [number, number, number, number][] {
+  return [
+    ...content.matchAll(/^(-?[\d.]+) (-?[\d.]+) m (-?[\d.]+) (-?[\d.]+) l S$/gm),
+  ].map((m) => [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])])
+}
 
 const ATTRIBUTION = '© IGN — SCAN25®'
 
@@ -42,6 +55,7 @@ function draw(
   angleRad = 0,
   total = 1,
   title: string | null = null,
+  track: readonly (readonly PagePoint[])[] | null = null,
 ): string {
   const canvas = new PdfPage(mm(A4_25K.widthMm), mm(A4_25K.heightMm))
   new PageDecor({
@@ -49,6 +63,7 @@ function draw(
     paper: A4_25K,
     attribution: ATTRIBUTION,
     title,
+    track,
   }).draw(canvas, mapPage, total)
   let s = ''
   for (const b of canvas.contentBytes()) s += String.fromCharCode(b)
@@ -117,9 +132,48 @@ describe('PageDecor', () => {
     expect(content).toContain(pdfString('p. 4, 5'))
   })
 
-  it('never draws the trace', () => {
-    // The GPX only decides where the pages go. Anything else is a bug, not a feature.
-    const content = draw()
-    expect(content).not.toContain('track')
+  it('does not draw the trace unless it is given one', () => {
+    // The default is still what it always was: the GPX decides where the pages go and is
+    // not printed on them.
+    expect(draw()).toBe(draw(page(), 0, 1, null, []))
+  })
+
+  it('draws the trace as a haloed polyline when asked', () => {
+    const p = page()
+    const content = draw(p, 0, 1, null, [
+      leg([p.rect.uMin + 1000, p.rect.vMin + 1000], [p.rect.uMin + 4000, p.rect.vMin + 5000]),
+    ])
+    // A white halo first, then the trace over it, so it reads over dark forest and rock.
+    expect(content).toContain('1.0000 1.0000 1.0000 RG')
+    expect(content).toContain(`${fmt(TRACK_RGB[0])} ${fmt(TRACK_RGB[1])} ${fmt(TRACK_RGB[2])} RG`)
+    // One halo pass and one colour pass over the same segment, plus the arrow's needle.
+    expect(strokedSegments(content)).toHaveLength(3)
+  })
+
+  it('clips the trace to the map area', () => {
+    const p = page()
+    // A leg running far outside the page must not paint over the footer or the margins.
+    const content = draw(p, 0, 1, null, [
+      leg([p.rect.uMin - 50_000, p.rect.vMin + 3000], [p.rect.uMax + 50_000, p.rect.vMin + 3000]),
+    ])
+    const segments = strokedSegments(content)
+    expect(segments.length).toBeGreaterThanOrEqual(2)
+    for (const [x1, y1, x2, y2] of segments) {
+      for (const [x, y] of [
+        [x1, y1],
+        [x2, y2],
+      ]) {
+        expect(x).toBeGreaterThanOrEqual(mm(5) - 0.01)
+        expect(x).toBeLessThanOrEqual(mm(205) + 0.01)
+        expect(y).toBeGreaterThanOrEqual(mm(15) - 0.01)
+        expect(y).toBeLessThanOrEqual(mm(292) + 0.01)
+      }
+    }
+  })
+
+  it('drops a leg that misses the page entirely', () => {
+    const p = page()
+    const far = leg([p.rect.uMin - 90_000, p.rect.vMin - 90_000], [p.rect.uMin - 80_000, p.rect.vMin - 80_000])
+    expect(draw(p, 0, 1, null, [far])).toBe(draw(p, 0, 1, null, []))
   })
 })

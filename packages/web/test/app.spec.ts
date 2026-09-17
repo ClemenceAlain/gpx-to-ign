@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import { inflateSync } from 'node:zlib'
 import { expect, test, type Page } from '@playwright/test'
 
 const FIXTURE = fileURLToPath(
@@ -160,6 +161,34 @@ test('does not replan when only the title changes', async ({ page }) => {
   await page.getByTestId('title').fill('Traversée de Normandie')
   await expect(page.getByTestId('planning')).toHaveCount(0)
   await expect(page.getByTestId('preview')).toBeVisible()
+})
+
+test('prints the trace on the map pages only when asked', async ({ page }) => {
+  await open(page)
+  await serveSyntheticTiles(page)
+  await page.getByTestId('gpx').setInputFiles(FIXTURE)
+  await expect(page.getByTestId('preview')).toBeVisible()
+  await page.getByTestId('draw-track').click()
+
+  const download = page.waitForEvent('download')
+  await page.getByTestId('generate').click()
+  await expect(page.getByTestId('job-done')).toBeVisible({ timeout: 170_000 })
+  const stream = await (await download).createReadStream()
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) chunks.push(chunk as Buffer)
+
+  // Content streams are deflated, so the violet stroke has to be inflated to be seen.
+  const pdf = Buffer.concat(chunks)
+  const text = pdf.toString('latin1')
+  const header = /<< \/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/g
+  let found = false
+  let m: RegExpExecArray | null
+  while ((m = header.exec(text)) !== null) {
+    const start = m.index + m[0].length
+    const content = inflateSync(pdf.subarray(start, start + Number(m[1]))).toString('latin1')
+    if (content.includes('0.3500 0.0000 0.7500 RG')) found = true
+  }
+  expect(found).toBe(true)
 })
 
 test('accepts several traces at once', async ({ page }) => {

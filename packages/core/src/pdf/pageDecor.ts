@@ -1,4 +1,6 @@
+import { clipSegment } from './geometry.js'
 import type { PdfPage } from './pdfPage.js'
+import type { PagePoint } from '../layout/planPreview.js'
 import {
   mapHeightMm,
   mapWidthMm,
@@ -16,7 +18,25 @@ export interface PageDecorOptions {
   readonly paper: PaperSpec
   readonly attribution: string
   readonly title: string | null
+  /**
+   * The walk, one polyline per leg, in page-frame metres. Null or empty draws nothing,
+   * which is the default and what every page looked like before this was an option.
+   */
+  readonly track?: readonly (readonly PagePoint[])[] | null
 }
+
+/**
+ * Violet.
+ *
+ * SCAN25 spends red and orange on roads, blue on water, green on woodland, brown on relief —
+ * and **magenta on GR waymarking**, which is exactly the kind of path a walker's GPX follows.
+ * Violet is the nearest hue that is legible on all of those and confusable with none, and the
+ * white halo under it settles the rest.
+ */
+export const TRACK_RGB: readonly [number, number, number] = [0.35, 0.0, 0.75]
+
+const TRACK_WIDTH_PT = 1.4
+const TRACK_HALO_PT = 3.2
 
 /**
  * Everything printed on top of the map: a north arrow that accounts for the page rotation,
@@ -26,13 +46,16 @@ export interface PageDecorOptions {
  * put a blue lattice over every square centimetre of an already dense map. The scale bar is
  * still an exact kilometre, so it remains the ruler test's measuring device.
  *
- * The GPX trace itself is deliberately never drawn — it only decided where the pages go.
+ * The GPX trace is drawn only when a `track` is passed. It defaults to off: the trace's job
+ * is to decide where the pages go, and a printed line over 1:25000 detail hides as much as
+ * it explains. Asked for on 2026-09-17.
  */
 export class PageDecor {
   private readonly frame: PageFrame
   private readonly paper: PaperSpec
   private readonly attribution: string
   private readonly title: string | null
+  private readonly track: readonly (readonly PagePoint[])[]
 
   private readonly mapX: number
   private readonly mapY: number
@@ -46,6 +69,7 @@ export class PageDecor {
     this.paper = options.paper
     this.attribution = options.attribution
     this.title = options.title
+    this.track = options.track ?? []
 
     this.mapX = mm(this.paper.safeMarginMm)
     this.mapY = mm(this.paper.safeMarginMm + this.paper.footerMm)
@@ -55,6 +79,7 @@ export class PageDecor {
   }
 
   draw(canvas: PdfPage, page: MapPage, total: number): void {
+    this.drawTrack(canvas, page)
     canvas.setStroke(0.0, 0.0, 0.0)
     canvas.setLineWidth(0.6)
     canvas.strokeRect(this.mapX, this.mapY, this.mapW, this.mapH)
@@ -62,6 +87,52 @@ export class PageDecor {
     this.drawNorthArrow(canvas)
     this.drawNeighbourTabs(canvas, page)
     this.drawFooter(canvas, page, total)
+  }
+
+  // --- the walk ----------------------------------------------------------------------
+
+  /**
+   * The trace, clipped to the map area so it never paints over the margins or the footer.
+   *
+   * Drawn twice: a white halo, then the line. One pass over dark forest or a hillshaded
+   * slope disappears into it.
+   */
+  private drawTrack(canvas: PdfPage, page: MapPage): void {
+    if (this.track.length === 0) return
+    const rect = page.rect
+    const toPt = (p: PagePoint): [number, number] => [
+      this.mapX + (p.u - rect.uMin) / this.metresPerPt,
+      this.mapY + (p.v - rect.vMin) / this.metresPerPt,
+    ]
+
+    const visible: [number, number, number, number][] = []
+    for (const leg of this.track) {
+      for (let i = 1; i < leg.length; i++) {
+        const [x1, y1] = toPt(leg[i - 1]!)
+        const [x2, y2] = toPt(leg[i]!)
+        const clipped = clipSegment(
+          x1,
+          y1,
+          x2,
+          y2,
+          this.mapX,
+          this.mapY,
+          this.mapX + this.mapW,
+          this.mapY + this.mapH,
+        )
+        if (clipped !== null) visible.push(clipped)
+      }
+    }
+    if (visible.length === 0) return
+
+    for (const [colour, width] of [
+      [[1.0, 1.0, 1.0] as const, TRACK_HALO_PT],
+      [TRACK_RGB, TRACK_WIDTH_PT],
+    ] as const) {
+      canvas.setStroke(colour[0], colour[1], colour[2])
+      canvas.setLineWidth(width)
+      for (const [x1, y1, x2, y2] of visible) canvas.line(x1, y1, x2, y2)
+    }
   }
 
   // --- overlays ----------------------------------------------------------------------
