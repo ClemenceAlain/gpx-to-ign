@@ -2,11 +2,14 @@ package io.gpxtoign.app
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
@@ -64,6 +67,7 @@ class MapJobWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 }
             } ?: return Result.failure(workDataOf(KEY_ERROR to "the chosen file could not be written"))
 
+            notifyFinished(destination, result.pages)
             Result.success(
                 workDataOf(
                     KEY_PAGES to result.pages,
@@ -77,17 +81,50 @@ class MapJobWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         }
     }
 
-    private fun foregroundInfo(label: String, done: Int, total: Int): ForegroundInfo {
-        val manager = applicationContext.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL,
-                    applicationContext.getString(R.string.notification_channel),
-                    NotificationManager.IMPORTANCE_LOW,
-                ),
-            )
+    /**
+     * A finished job is easy to miss: the download runs for minutes with the screen off, so
+     * the result gets its own notification that opens the ZIP straight from the shade.
+     */
+    private fun notifyFinished(destination: Uri, pages: Int) {
+        channel(DONE_CHANNEL, NotificationManager.IMPORTANCE_DEFAULT)
+        val open = PendingIntent.getActivity(
+            applicationContext,
+            0,
+            Intent(Intent.ACTION_VIEW)
+                .setDataAndType(destination, "application/zip")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(applicationContext, DONE_CHANNEL)
+            .setContentTitle("Cartes prêtes")
+            .setContentText("$pages page(s) A4 enregistrées. Touchez pour ouvrir le ZIP.")
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        NotificationManagerCompat.from(applicationContext).let { manager ->
+            if (manager.areNotificationsEnabled()) {
+                @Suppress("MissingPermission")
+                manager.notify(DONE_NOTIFICATION_ID, notification)
+            }
         }
+    }
+
+    private fun channel(id: String, importance: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            applicationContext.getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(
+                    NotificationChannel(
+                        id,
+                        applicationContext.getString(R.string.notification_channel),
+                        importance,
+                    ),
+                )
+        }
+    }
+
+    private fun foregroundInfo(label: String, done: Int, total: Int): ForegroundInfo {
+        channel(CHANNEL, NotificationManager.IMPORTANCE_LOW)
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setContentTitle(applicationContext.getString(R.string.app_name))
             .setContentText(label)
@@ -105,7 +142,9 @@ class MapJobWorker(context: Context, params: WorkerParameters) : CoroutineWorker
     companion object {
         const val NAME = "gpx-to-ign-job"
         private const val CHANNEL = "gpx-to-ign"
+        private const val DONE_CHANNEL = "gpx-to-ign-done"
         private const val NOTIFICATION_ID = 4231
+        private const val DONE_NOTIFICATION_ID = 4232
 
         const val KEY_SOURCES = "sources"
         const val KEY_DESTINATION = "destination"

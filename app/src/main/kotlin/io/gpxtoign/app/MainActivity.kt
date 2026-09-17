@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -35,6 +36,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.work.ExistingWorkPolicy
@@ -76,6 +79,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** Hands the finished ZIP to whatever app on the phone can open archives. */
+private fun openZip(context: android.content.Context, uri: Uri) {
+    val intent = Intent(Intent.ACTION_VIEW)
+        .setDataAndType(uri, "application/zip")
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    runCatching { context.startActivity(Intent.createChooser(intent, "Ouvrir le ZIP")) }
+}
+
 /**
  * Holds on to the document grant past this activity: the ZIP is written by a background
  * worker, which may well outlive the screen that picked the files.
@@ -103,6 +114,18 @@ private fun MainScreen(model: MainViewModel, shared: List<Uri>) {
         ActivityResultContracts.RequestPermission(),
     ) { }
 
+    // Asked for on entry, never alongside the save dialog: two activity launches in one
+    // click race each other, and the permission prompt wins, so the save dialog never
+    // appeared and no file was ever created.
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     val pickGpx = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
@@ -110,10 +133,13 @@ private fun MainScreen(model: MainViewModel, shared: List<Uri>) {
         model.addFiles(uris)
     }
 
+    var destination by remember { mutableStateOf<Uri?>(null) }
+
     val saveZip = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip"),
     ) { uri ->
         if (uri != null) {
+            destination = uri
             persist(context, uri, write = true)
             WorkManager.getInstance(context).enqueueUniqueWork(
                 MapJobWorker.NAME,
@@ -258,26 +284,27 @@ private fun MainScreen(model: MainViewModel, shared: List<Uri>) {
                         }
                     }
                     Button(
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                            saveZip.launch("cartes-ign.zip")
-                        },
+                        onClick = { saveZip.launch("cartes-ign.zip") },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text("Générer le ZIP de PDF")
                     }
+                    Text(
+                        "Android vous demandera où enregistrer le ZIP. Le dossier " +
+                            "Téléchargements est le choix le plus simple à retrouver.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
 
-            work.firstOrNull()?.let { info -> JobStatus(info) }
+            work.firstOrNull()?.let { info -> JobStatus(info, destination) }
         }
     }
 }
 
 @Composable
-private fun JobStatus(info: WorkInfo) {
+private fun JobStatus(info: WorkInfo, destination: Uri?) {
+    val context = LocalContext.current
     HorizontalDivider()
     when (info.state) {
         WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED -> {
@@ -298,6 +325,13 @@ private fun JobStatus(info: WorkInfo) {
                 "ZIP écrit : $pages page(s), %.0f Mo téléchargés.".format(bytes / 1e6),
                 color = Color(0xFF2E7D32),
             )
+            destination?.let { uri ->
+                Text(
+                    "Enregistré sous ${GpxLoader.displayName(context, uri)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedButton(onClick = { openZip(context, uri) }) { Text("Ouvrir le ZIP") }
+            }
             if (missing > 0) {
                 Text("$missing tuile(s) manquante(s) : ces zones sont blanches.")
             }
