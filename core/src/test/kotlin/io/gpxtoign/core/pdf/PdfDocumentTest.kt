@@ -1,6 +1,7 @@
 package io.gpxtoign.core.pdf
 
 import java.io.ByteArrayOutputStream
+import java.util.zip.Inflater
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -14,6 +15,27 @@ class PdfDocumentTest {
     }
 
     private fun latin1(bytes: ByteArray) = bytes.toString(Charsets.ISO_8859_1)
+
+    /** Content streams are deflated, so page operators have to be inflated to be read. */
+    private fun contentStreams(pdf: ByteArray): String {
+        val text = latin1(pdf)
+        val header = Regex("<< /Filter /FlateDecode /Length (\\d+) >>\nstream\n")
+        return header.findAll(text).joinToString("\n") { match ->
+            val start = match.range.last + 1
+            val length = match.groupValues[1].toInt()
+            val inflater = Inflater()
+            inflater.setInput(pdf, start, length)
+            val out = ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            while (!inflater.finished()) {
+                val n = inflater.inflate(buffer)
+                if (n == 0) break
+                out.write(buffer, 0, n)
+            }
+            inflater.end()
+            latin1(out.toByteArray())
+        }
+    }
 
     @Test
     fun `produces a structurally valid single page document`() {
@@ -94,13 +116,13 @@ class PdfDocumentTest {
         assertTrue(text.contains("/Subtype /Image /Width 8 /Height 8"))
         assertTrue(text.contains("/Filter /DCTDecode /Length 64"))
         assertTrue(latin1(jpeg) in text, "the jpeg bytes were altered")
-        assertTrue(text.contains("100.0000 0 0 100.0000 0.0000 0.0000 cm /Im0 Do"))
+        assertTrue(contentStreams(bytes).contains("100.0000 0 0 100.0000 0.0000 0.0000 cm /Im0 Do"))
     }
 
     @Test
     fun `parentheses and backslashes in labels are escaped`() {
         val bytes = write { it.addPage { page -> page.text(0.0, 0.0, 8.0, "a(b)c\\d") } }
-        assertTrue(latin1(bytes).contains("(a\\(b\\)c\\\\d) Tj"))
+        assertTrue(contentStreams(bytes).contains("(a\\(b\\)c\\\\d) Tj"))
     }
 
     /** WinAnsi, not Latin-1: the attribution line's em dash lives at 0x97. */
@@ -110,7 +132,20 @@ class PdfDocumentTest {
             it.addPage { page -> page.text(0.0, 0.0, 8.0, "© IGN — SCAN25®") }
         }
         val expected = "(© IGN " + 0x97.toChar() + " SCAN25®) Tj"
-        assertTrue(latin1(bytes).contains(expected), "em dash was not transcoded to WinAnsi")
+        assertTrue(contentStreams(bytes).contains(expected), "em dash was not transcoded to WinAnsi")
+    }
+
+    @Test
+    fun `content streams are deflated`() {
+        val bytes = write { document ->
+            document.addPage { page ->
+                repeat(40) { page.text(10.0, it.toDouble(), 8.0, "un libelle assez repetitif") }
+            }
+        }
+        val compressed = Regex("<< /Filter /FlateDecode /Length (\\d+) >>")
+            .find(latin1(bytes))!!.groupValues[1].toInt()
+        val plain = contentStreams(bytes).length
+        assertTrue(compressed < plain / 2, "content stream barely shrank: $compressed vs $plain")
     }
 
     @Test

@@ -145,6 +145,24 @@ fun ScreenContent(
                             actions.update { it.copy(includeIndexPage = value) }
                         }
                     }
+                    RowSeparator()
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            "Qualité d'impression",
+                            style = AppText.body,
+                            color = colors.label,
+                            modifier = Modifier.padding(bottom = 10.dp),
+                        )
+                        SegmentedControl(
+                            options = PrintQuality.entries.map { it.label },
+                            selectedIndex = state.settings.quality.ordinal,
+                            onSelect = { index ->
+                                actions.update {
+                                    it.copy(jpegQuality = PrintQuality.entries[index].jpeg)
+                                }
+                            },
+                        )
+                    }
                 }
                 SectionFootnote(
                     "La rotation cherche l'orientation qui tient sur le moins de pages. " +
@@ -274,6 +292,10 @@ private fun PlanSummary(state: UiState, actions: ScreenActions) {
         RowSeparator()
         SettingsRow(title = "Rotation des cartes") {
             Value("${((360 - estimate.angleDeg) % 360).roundToInt()}°")
+        }
+        RowSeparator()
+        SettingsRow(title = "Taille du PDF") {
+            Value("≈ %.0f Mo".format(estimate.approximatePdfBytes / 1e6))
         }
         RowSeparator()
         SettingsRow(title = "Téléchargement") {

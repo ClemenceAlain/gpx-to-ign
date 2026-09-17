@@ -44,6 +44,7 @@ class ScreenScreenshotTest {
             pages = 7,
             tiles = 812,
             approximateBytes = 118_000_000L,
+            approximatePdfBytes = 12_400_000L,
             angleDeg = 34.0,
         ),
     )

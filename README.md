@@ -18,8 +18,8 @@ Android may refuse to install over a previous version. Uninstall the old one fir
 
 1. Open the app, tap **Ajouter des GPX**, pick one or more traces. You can also share a GPX
    to the app from any other app.
-2. Adjust the margin (default 500 m of map around the trace) and whether the pages may
-   rotate.
+2. Adjust the margin (default 500 m of map around the trace), whether the pages may rotate,
+   and the print quality.
 3. Check the page count and download size, then tap **Générer le PDF** and choose where to
    save it.
 
@@ -32,6 +32,30 @@ A4 page per map sheet. Each map page has:
 - tabs naming the page that continues the map off each edge.
 
 Send the whole file to a printer and you get the book in order.
+
+## File size
+
+A dense alpine page is about 1.7 MB, so a seven-page book lands near 12 MB. Three presets
+trade size against print quality:
+
+| Preset | JPEG | Four-page alpine book |
+|---|---|---|
+| Compacte | 60 | 6.3 MB |
+| Standard (default) | 72 | 7.5 MB |
+| Fine | 85 | 10.1 MB |
+
+All three are indistinguishable from the source raster when printed at 254 dpi, and still
+hold up under a 3× magnifier; the differences live in the relief shading, not in place
+names or contour lines.
+
+Quality is the only lever worth pulling here. SCAN25 carries continuous relief shading and
+about 180 000 distinct colours per page, so an indexed palette would band it. Chroma
+subsampling would help, but Android's encoder gives no control over it. Dropping below the
+native 2.5 m per pixel loses more to blurred map text than it saves in bytes: q80 at 200 dpi
+is the same size as q60 at 254 dpi and visibly softer.
+
+The overview page is compressed a step harder than the map pages, since it is an index
+rather than something to navigate by, and the vector content streams are Flate compressed.
 
 ## How the page count is minimised
 

@@ -23,7 +23,7 @@ usage: gpx-to-ign [options] <trace.gpx> [more.gpx ...]
       --key KEY       API key for the map source
       --cache DIR     tile cache directory (default: .tilecache)
       --title TEXT    title printed in the page footer
-      --quality N     JPEG quality 1-100 (default: 85)
+      --quality N     JPEG quality 1-100 (default: 72)
       --no-index      skip the overview page
       --dry-run       report the page plan and download estimate, then stop
       --explain       list the page count for every candidate rotation angle
@@ -42,7 +42,7 @@ fun main(args: Array<String>) = runBlocking {
     var key: String? = null
     var cache = File(".tilecache")
     var title: String? = null
-    var quality = 85
+    var quality = JobOptions().jpegQuality
     var index = true
     var dryRun = false
     var explain = false
@@ -94,8 +94,12 @@ fun main(args: Array<String>) = runBlocking {
     val layout = runner.plan(files, options)
     val estimate = runner.estimate(layout, options)
     println(
-        "plan: ${estimate.pages} A4 page(s), rotation %.0f°, about %d tiles / %.0f MB to download"
-            .format(estimate.angleDeg, estimate.tiles, estimate.approximateBytes / 1e6),
+        ("plan: ${estimate.pages} A4 page(s), rotation %.0f°, about %d tiles / %.0f MB to " +
+            "download, PDF about %.0f MB")
+            .format(
+                estimate.angleDeg, estimate.tiles,
+                estimate.approximateBytes / 1e6, estimate.approximatePdfBytes / 1e6,
+            ),
     )
     if (explain) {
         println("page count by rotation angle:")

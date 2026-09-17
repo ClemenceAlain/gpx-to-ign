@@ -1,6 +1,8 @@
 package io.gpxtoign.core.pdf
 
+import java.io.ByteArrayOutputStream
 import java.io.OutputStream
+import java.util.zip.Deflater
 import java.util.Locale
 
 /**
@@ -58,7 +60,7 @@ class PdfDocument(
                 image.jpeg,
             )
         }
-        val contentRef = writeStream(allocate(), null, page.contentBytes())
+        val contentRef = writeStream(allocate(), "/Filter /FlateDecode", deflate(page.contentBytes()))
         val resources = buildString {
             append("<< /Font << /F1 $REGULAR_FONT 0 R /F2 $BOLD_FONT 0 R >>")
             if (imageRefs.isNotEmpty()) {
@@ -129,6 +131,23 @@ class PdfDocument(
         write(payload)
         write("\nendstream\nendobj\n".toByteArray(Charsets.ISO_8859_1))
         return number
+    }
+
+    /** Vector operators are plain ASCII and shrink by roughly four to one. */
+    private fun deflate(bytes: ByteArray): ByteArray {
+        val deflater = Deflater(Deflater.BEST_COMPRESSION)
+        return try {
+            deflater.setInput(bytes)
+            deflater.finish()
+            val out = ByteArrayOutputStream(bytes.size / 2 + 32)
+            val buffer = ByteArray(8192)
+            while (!deflater.finished()) {
+                out.write(buffer, 0, deflater.deflate(buffer))
+            }
+            out.toByteArray()
+        } finally {
+            deflater.end()
+        }
     }
 
     private fun write(bytes: ByteArray) {

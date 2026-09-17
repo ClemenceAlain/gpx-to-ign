@@ -8,6 +8,7 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
+import javax.imageio.plugins.jpeg.JPEGImageWriteParam
 
 /** Desktop codec, so the whole pipeline can be exercised without a phone. */
 class AwtImageCodec : ImageCodec {
@@ -27,9 +28,11 @@ class AwtImageCodec : ImageCodec {
         val out = ByteArrayOutputStream()
         ImageIO.createImageOutputStream(out).use { stream ->
             writer.output = stream
-            val params = writer.defaultWriteParam.apply {
+            val params = (writer.defaultWriteParam as JPEGImageWriteParam).apply {
                 compressionMode = ImageWriteParam.MODE_EXPLICIT
                 compressionQuality = quality / 100f
+                // Android's encoder always does this; ImageIO does not unless asked.
+                optimizeHuffmanTables = true
             }
             writer.write(null, IIOImage(buffered, null, null), params)
         }

@@ -25,14 +25,37 @@ data class JobOptions(
     val paper: PaperSpec = PaperSpec(),
     val layout: LayoutOptions = LayoutOptions(),
     val source: MapSource = MapSource.SCAN25,
-    val jpegQuality: Int = 85,
+    /**
+     * JPEG quality for the map pages.
+     *
+     * SCAN25 carries continuous relief shading and about 180 000 distinct colours, so an
+     * indexed palette would band it and JPEG is the right codec. Quality is then the only
+     * size lever that both the JVM and Android encoders expose: Android gives no control
+     * over chroma subsampling, and dropping the raster below its native 2.5 m per pixel
+     * blurs the map text more than the bytes it saves are worth.
+     *
+     * The default is where a 3x magnified comparison against the original stops showing a
+     * difference on place names and contour lines.
+     */
+    val jpegQuality: Int = 72,
     val includeIndexPage: Boolean = true,
     val title: String? = null,
-)
+) {
+    /** The overview is an index, not something to navigate by, so it is compressed harder. */
+    val overviewQuality: Int get() = (jpegQuality - 12).coerceAtLeast(45)
+}
 
 data class JobProgress(val done: Int, val total: Int, val label: String)
 
-data class JobEstimate(val pages: Int, val tiles: Int, val approximateBytes: Long, val angleDeg: Double)
+data class JobEstimate(
+    val pages: Int,
+    val tiles: Int,
+    /** Bytes to pull from the Géoplateforme. */
+    val approximateBytes: Long,
+    /** Size of the PDF this will produce. */
+    val approximatePdfBytes: Long,
+    val angleDeg: Double,
+)
 
 data class JobResult(
     /** Map pages, excluding the overview. */
@@ -63,12 +86,33 @@ class JobRunner(
             val (frame, matrix) = overviewFrame(layout, options.paper)
             tiles.addAll(TileGrid.tilesCovering(groundBounds(layout, frame), matrix))
         }
+        val perPage = pageBytesAt(options.jpegQuality)
+        val overview = if (options.includeIndexPage) pageBytesAt(options.overviewQuality) else 0L
         return JobEstimate(
             pages = layout.pages.size,
             tiles = tiles.size,
             approximateBytes = tiles.size.toLong() * AVERAGE_TILE_BYTES,
+            approximatePdfBytes = layout.pages.size * perPage + overview,
             angleDeg = layout.angleDeg,
         )
+    }
+
+    /**
+     * Bytes one full A4 map page takes at a given JPEG quality, interpolated from a dense
+     * alpine page measured at 2000 x 2770 pixels. Gentler terrain compresses better, so
+     * this is a ceiling rather than a prediction.
+     */
+    private fun pageBytesAt(quality: Int): Long {
+        val curve = listOf(
+            50 to 1_280_000L, 60 to 1_443_000L, 65 to 1_551_000L, 70 to 1_684_000L,
+            75 to 1_836_000L, 80 to 2_061_000L, 85 to 2_375_000L, 90 to 2_883_000L,
+        )
+        val q = quality.coerceIn(curve.first().first, curve.last().first)
+        val upper = curve.first { it.first >= q }
+        val lower = curve.last { it.first <= q }
+        if (upper.first == lower.first) return upper.second
+        val t = (q - lower.first).toDouble() / (upper.first - lower.first)
+        return (lower.second + (upper.second - lower.second) * t).toLong()
     }
 
     suspend fun run(
@@ -152,7 +196,7 @@ class JobRunner(
     private suspend fun indexPage(document: PdfDocument, layout: Layout, options: JobOptions) {
         val paper = options.paper
         val (framed, matrix) = overviewFrame(layout, paper)
-        val overview = MapRenderer(fetcher, codec, matrix, quality = options.jpegQuality)
+        val overview = MapRenderer(fetcher, codec, matrix, quality = options.overviewQuality)
         val widthPx = (framed.width / TileGrid.resolution(matrix)).roundToInt().coerceIn(256, 3000)
         val heightPx = (widthPx * framed.height / framed.width).roundToInt().coerceAtLeast(256)
         val blocks = overview.render(framed, layout.angleRad, widthPx, heightPx)

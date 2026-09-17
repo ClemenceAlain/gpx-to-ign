@@ -37,6 +37,24 @@ class JobSettingsTest {
     }
 
     @Test
+    fun `quality presets round-trip through the raw jpeg number`() {
+        for (quality in PrintQuality.entries) {
+            assertEquals(quality, JobSettings(jpegQuality = quality.jpeg).quality)
+        }
+        // A key typed in from an older build still lands on the nearest preset.
+        assertEquals(PrintQuality.FINE, JobSettings(jpegQuality = 88).quality)
+        assertEquals(PrintQuality.COMPACT, JobSettings(jpegQuality = 55).quality)
+    }
+
+    @Test
+    fun `the overview is compressed harder than the map pages`() {
+        val options = JobSettings(jpegQuality = 72).toJobOptions()
+        assertTrue(options.overviewQuality < options.jpegQuality)
+        assertTrue(options.overviewQuality >= 45)
+        assertTrue(JobSettings(jpegQuality = 45).toJobOptions().overviewQuality >= 45)
+    }
+
+    @Test
     fun `settings map onto job options`() {
         val options = JobSettings(
             marginM = 750.0, allowRotation = false, includeIndexPage = false,
