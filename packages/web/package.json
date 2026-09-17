@@ -1,0 +1,18 @@
+{
+  "name": "@gpx-to-ign/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "playwright test",
+    "test:real": "playwright test -c playwright.real.config.ts"
+  },
+  "dependencies": {
+    "@gpx-to-ign/core": "*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
