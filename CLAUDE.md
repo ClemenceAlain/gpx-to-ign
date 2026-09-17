@@ -25,19 +25,45 @@ Each of these came from a measurement, not a guess. Changing one silently degrad
 |---|---|---|
 | Layout seed | `0x6A7E1E15` | Keeps the 24 randomised restarts deterministic |
 | `AVERAGE_TILE_BYTES` | `145_000` | Measured mean SCAN25 tile; was 170 000 and over-estimated |
-| `pageBytesAt` curve | q50->1.28 MB … q90->2.88 MB | Measured; drives the size estimate shown before download |
+| `pageBytesAt` curve | q50->0.71 MB … q90->1.49 MB | Re-measured on the browser encoder, 2026-09-17. See below |
 | `OVERVIEW_WIDTH_PX` | `1400` | At print resolution the overview cost 329 extra tiles; 93 now |
 | `overviewQuality` | `max(q - 12, 45)` | Overview tolerates more compression than map pages |
-| JPEG chroma | **4:4:4**, never 4:2:0 | 4:2:0 costs ~4 dB on thin saturated map lines |
+| JPEG chroma | **4:2:0** — the browser gives nothing else | See below. Was 4:4:4 under Kotlin |
 | Densify / dedupe | 50 m / 5 m | Packing resolution |
 | Fetch tuning | concurrency 6, 4 attempts, 400ms<<(n-1) backoff, retry 429/5xx only | The Geoplateforme throttles aggressive clients and publishes no quota |
 
 **PDF size: JPEG quality is the only lever.** Indexed palette (banding — 12 tiles hold
-179 925 unique colours, top 256 cover 24.9% of pixels), chroma subsampling (4 dB loss, no
-browser control), downsampling (q80@200dpi weighs the same as q60@254dpi and is softer) and
-progressive JPEG (2200 vs 2320 KB) were all measured and rejected. Do not re-derive this.
+179 925 unique colours, top 256 cover 24.9% of pixels), downsampling (q80@200dpi weighs the
+same as q60@254dpi and is softer) and progressive JPEG (2200 vs 2320 KB) were all measured
+and rejected. Do not re-derive this.
 
 Presets: Compacte q60 / **Standard q72 (default)** / Fine q85.
+
+### Chroma: the one invariant the web platform took away
+
+Kotlin encoded 4:4:4 because 4:2:0 costs ~4 dB on the thin saturated lines a 1:25000 map is
+made of. `OffscreenCanvas.convertToBlob` exposes no chroma control, and Chrome subsamples at
+**every quality except 100**. Measured on one 512 px block of real SCAN25 (2026-09-17):
+
+| q | 60 | 72 | 85 | 88 | 90 | 92 | 94 | 95 | 100 |
+|---|---|---|---|---|---|---|---|---|---|
+| kB | 69 | 83 | 111 | 122 | 133 | 144 | 163 | 174 | **436** |
+| chroma | 4:2:0 | 4:2:0 | 4:2:0 | 4:2:0 | 4:2:0 | 4:2:0 | 4:2:0 | 4:2:0 | **4:4:4** |
+
+q100 is 4x q85 for one step of chroma, so it is not a usable lever. **Clémence accepted
+4:2:0** on 2026-09-17 rather than ship a WASM MozJPEG encoder. Do not re-open this without
+new evidence from a print.
+
+**Every size number below is therefore about half the Kotlin equivalent.** One A4 page of the
+Normandy fixture, browser encoder, real SCAN25:
+
+| q | 50 | 60 | 70 | 72 | 80 | 85 | 90 |
+|---|---|---|---|---|---|---|---|
+| MB | 0.71 | 0.79 | 0.90 | **0.93** | 1.09 | 1.24 | 1.49 |
+
+Caveat before reusing these: the Kotlin sweep was a *Chamonix* page and this one is
+*Normandy*, which is far less detailed. The clean encoder comparison is the 512 px block
+table above, not this one. Re-measure the book totals once the packing lands.
 
 ## Map source
 
@@ -62,7 +88,8 @@ https://data.geopf.fr/private/wmts?apikey=ign_scan_ws
 - **Do not delete the Kotlin tree** (`core/ app/ cli/ gradle/ gradlew* *.gradle.kts`) until
   stage-diff equivalence passes on every fixture. It is the oracle for the port.
 - **Port the Kotlin test first, watch it fail, then port the implementation.** The 48
-  existing tests are the specification.
+  existing tests are the specification. Where Kotlin had none — `PageDecor` — write the
+  test against the invariants instead, and still watch it fail first.
 - Prime `.tilecache` once and point both implementations at it. Never let an iteration loop
   re-download ~68 MB from IGN.
 
@@ -85,7 +112,9 @@ hand-built controls, no component library. Full rules in `REBUILD-PLAN.md`.
 
 ## Where the rebuild is
 
-Branch `rebuild-typescript`. Last commit `ea17b46`. `npx vitest run` => 43 passing.
+Branch `rebuild-typescript`. Last commit `7df29e2`.
+`npx vitest run` => 58 passing. `npm run typecheck` clean.
+`npm run -w @gpx-to-ign/web test` => 2 Playwright tests passing.
 
 **Done** — ported test-first from Kotlin, each module's Kotlin test translated,
 watched fail, then the implementation:
@@ -94,26 +123,44 @@ watched fail, then the implementation:
 |---|---|
 | geo | `packages/core/src/geo/{lambert93,tileGrid}.ts` |
 | gpx | `packages/core/src/gpx/{xml,gpx}.ts` (own tokenizer: no DOMParser in Node) |
-| pdf | `packages/core/src/pdf/{format,metrics,geometry,pdfPage,pdfDocument}.ts` |
+| pdf | `packages/core/src/pdf/{format,metrics,geometry,pdfPage,pdfDocument,pageDecor}.ts` |
 | tiles | `packages/core/src/tiles/{mapSource,tileFetcher}.ts` |
+| render | `packages/core/src/render/{image,mapRenderer}.ts` |
+| layout | `packages/core/src/layout/{rect,pageLayout}.ts` — data and frame only, no packing |
+| web | `packages/web` — the walking skeleton, see below |
+
+**Decisions taken while porting, do not re-litigate:**
+- The raster is `RgbaImage` (8-bit RGBA in a `Uint8ClampedArray`), not Kotlin's packed ARGB
+  ints, because that is what `getImageData` returns. `ImageCodec` is async because
+  `convertToBlob` is.
+- `PageDecor` takes a `PageFrame` (angleRad / toL93 / toPage / northOnPage), not the whole
+  `Layout`. That is what let the page furniture land before the packing. `Layout` will
+  implement it.
+- `core` compiles with the DOM lib: `fetch`, `AbortController` and the timers live nowhere
+  else. Keep `core` free of the real DOM by review, not by the compiler.
+- Platform packages import from `@gpx-to-ign/core` only — never a deeper path.
+
+**The walking skeleton.** `packages/web` renders one north-up A4 page and downloads a PDF.
+Two loops, deliberately separate:
+- `npm run -w @gpx-to-ign/web test` routes `data.geopf.fr` to a synthetic tile. Free, fast,
+  deterministic. **Use this one while iterating.**
+- `npm run -w @gpx-to-ign/web test:real` hits IGN once and writes
+  `packages/web/out/ruler-page1.pdf`. 108 tiles, 0 missing, 0.93 MB at q72. Re-running it
+  within one browser session costs 0 downloads — the Cache API resume path works.
 
 **Next, in order:**
-1. `render/mapRenderer.ts` — port `core/.../render/MapRenderer.kt`. 512 px blocks,
-   bilinear, 64-entry tile LRU. Platform seam is
-   `ImageCodec { decode(bytes), encodeJpeg(img, quality) }`.
-2. `pdf/pageDecor.ts` — port `core/.../pdf/PageDecor.kt`. Needed for the ruler test:
-   the L93 1 km grid is what gets measured.
-3. **Walking skeleton** — `packages/web`, Vite + React, one hardcoded north-up page
-   over `fixtures/normandie-traverse-30km.gpx`, fetch -> render -> JPEG -> PDF, in a
-   real browser. Drive it headless with Playwright so there is a feedback loop.
-4. **Gate: the ruler test.** Print page 1 at 100% on A4; 1 km must measure 40.0 mm.
-   Only Clémence can do this. Do not start the layout port before it passes.
-5. Then `layout/` (the packing), the biggest and subtlest port.
+1. **Gate: the ruler test.** Print `packages/web/out/ruler-page1.pdf` at 100% on A4 — no
+   fit-to-page. A kilometre of the blue Lambert-93 grid, and the scale bar, must measure
+   40.0 mm. Only Clémence can do this. Do not start the layout port before it passes.
+2. Then `layout/` — `cover.ts`, the packing in `pageLayout.ts`, `planPreview.ts`. The
+   biggest and subtlest port. `Layout` implements the existing `PageFrame`.
+3. Then `job.ts`, the checkpointed plan/estimate/run, and the real web UI.
 
 **Verified by hand, do not re-check:**
 - SCAN25 + `ign_scan_ws` works today; CORS is `access-control-allow-origin: *`.
 - SCAN25 covers the Normandy fixtures: level 16, `TILECOL=819 TILEROW=7984` returns
   a 128 kB PNG.
 - Node 22.14, npm 10.9, Java 21, Android SDK at `/home/clemence/Android`.
+- Playwright chromium-headless-shell 1243 is installed.
 
 **Still missing:** a loop GPX fixture. Nothing exercises `Cover.maxCoverage` yet.
