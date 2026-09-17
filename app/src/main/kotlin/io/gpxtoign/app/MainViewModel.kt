@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import io.gpxtoign.core.JobEstimate
 import io.gpxtoign.core.JobRunner
 import io.gpxtoign.core.gpx.GpxFile
+import io.gpxtoign.core.layout.PlanPreview
 import io.gpxtoign.core.tiles.MapSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,8 @@ data class UiState(
     val settings: JobSettings = JobSettings(),
     val planning: Boolean = false,
     val estimate: JobEstimate? = null,
+    /** The page plan drawn on screen. Kept while a replan runs, so the card never blinks. */
+    val preview: PlanPreview? = null,
     val error: String? = null,
 )
 
@@ -79,13 +82,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val settings = _state.value.settings
             val options = settings.toJobOptions()
-            val estimate = withContext(Dispatchers.Default) {
+            val (estimate, preview) = withContext(Dispatchers.Default) {
                 val runner = JobRunner(NoTiles, AndroidImageCodec())
-                runner.estimate(runner.plan(parsed, options), options)
+                val layout = runner.plan(parsed, options)
+                runner.estimate(layout, options) to PlanPreview.of(layout)
             }
-            _state.update { it.copy(planning = false, estimate = estimate) }
+            _state.update { it.copy(planning = false, estimate = estimate, preview = preview) }
         } catch (e: Exception) {
-            _state.update { it.copy(planning = false, estimate = null, error = e.message) }
+            _state.update {
+                it.copy(planning = false, estimate = null, preview = null, error = e.message)
+            }
         }
     }
 

@@ -28,7 +28,8 @@ data class JobSettings(
     val allowRotation: Boolean = true,
     val sourceId: String = MapSource.SCAN25.id,
     val apiKey: String = MapSource.SCAN25.apiKey.orEmpty(),
-    val includeIndexPage: Boolean = true,
+    /** The plan is previewed on screen, so the printed overview page is opt-in. */
+    val includeIndexPage: Boolean = false,
     val jpegQuality: Int = PrintQuality.STANDARD.jpeg,
     val title: String? = null,
 ) {

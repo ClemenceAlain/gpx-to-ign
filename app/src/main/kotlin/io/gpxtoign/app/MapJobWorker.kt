@@ -38,7 +38,7 @@ class MapJobWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             allowRotation = inputData.getBoolean(KEY_ROTATION, true),
             sourceId = inputData.getString(KEY_SOURCE_ID).orEmpty(),
             apiKey = inputData.getString(KEY_API_KEY).orEmpty(),
-            includeIndexPage = inputData.getBoolean(KEY_INDEX, true),
+            includeIndexPage = inputData.getBoolean(KEY_INDEX, false),
             jpegQuality = inputData.getInt(KEY_QUALITY, 85),
             title = inputData.getString(KEY_TITLE),
         )

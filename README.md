@@ -20,11 +20,14 @@ Android may refuse to install over a previous version. Uninstall the old one fir
    to the app from any other app.
 2. Adjust the margin (default 500 m of map around the trace), whether the pages may rotate,
    and the print quality.
-3. Check the page count and download size, then tap **Générer le PDF** and choose where to
-   save it.
+3. Check the plan: the preview draws every page footprint, numbered in walking order, over
+   the trace, next to the page count and the download size. It follows the settings live,
+   so a different margin or no rotation redraws it immediately.
+4. Tap **Générer le PDF** and choose where to save it.
 
-The PDF opens on an overview page showing every page footprint, numbered, then carries one
-A4 page per map sheet. Each map page has:
+The preview is the overview. The PDF itself carries one A4 page per map sheet and nothing
+else, unless you turn **Plan d'ensemble dans le PDF** on, which prepends the same plan as a
+printed index page. Each map page has:
 
 - the SCAN25 map at exactly 1:25000, at its native 2.5 m per pixel (254 dpi),
 - the Lambert-93 kilometre grid, so 1 km is always 40 mm on paper,
@@ -54,8 +57,9 @@ subsampling would help, but Android's encoder gives no control over it. Dropping
 native 2.5 m per pixel loses more to blurred map text than it saves in bytes: q80 at 200 dpi
 is the same size as q60 at 254 dpi and visibly softer.
 
-The overview page is compressed a step harder than the map pages, since it is an index
-rather than something to navigate by, and the vector content streams are Flate compressed.
+The optional overview page is compressed a step harder than the map pages, since it is an
+index rather than something to navigate by, and the vector content streams are Flate
+compressed.
 
 ## How the page count is minimised
 
@@ -115,7 +119,8 @@ The same engine runs on the desktop, which is how the PDFs get checked during de
 ```
 
 `--dry-run` reports the plan without downloading anything; `--explain` lists the page count
-for every candidate rotation angle.
+for every candidate rotation angle; `--index` prepends the printed overview page the app
+shows on screen instead.
 
 ## Development
 

@@ -24,7 +24,7 @@ usage: gpx-to-ign [options] <trace.gpx> [more.gpx ...]
       --cache DIR     tile cache directory (default: .tilecache)
       --title TEXT    title printed in the page footer
       --quality N     JPEG quality 1-100 (default: 72)
-      --no-index      skip the overview page
+      --index         prepend an overview page showing every page footprint
       --dry-run       report the page plan and download estimate, then stop
       --explain       list the page count for every candidate rotation angle
 """
@@ -43,7 +43,7 @@ fun main(args: Array<String>) = runBlocking {
     var cache = File(".tilecache")
     var title: String? = null
     var quality = JobOptions().jpegQuality
-    var index = true
+    var index = JobOptions().includeIndexPage
     var dryRun = false
     var explain = false
     val inputs = mutableListOf<File>()
@@ -63,6 +63,8 @@ fun main(args: Array<String>) = runBlocking {
             "--cache" -> cache = File(args[++i])
             "--title" -> title = args[++i]
             "--quality" -> quality = args[++i].toInt()
+            "--index" -> index = true
+            // Kept working now that the overview is off by default, so old scripts still run.
             "--no-index" -> index = false
             "--dry-run" -> dryRun = true
             "--explain" -> explain = true

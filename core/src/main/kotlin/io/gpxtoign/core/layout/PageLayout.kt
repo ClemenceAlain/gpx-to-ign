@@ -70,6 +70,8 @@ class Layout(
     val pages: List<MapPage>,
     val trackBounds: Bounds,
     val samples: List<L93>,
+    /** Index of the first sample of each leg, plus a trailing entry equal to `samples.size`. */
+    val segmentStart: IntArray,
 ) {
     private val cosA = cos(angleRad)
     private val sinA = sin(angleRad)
@@ -85,6 +87,14 @@ class Layout(
     fun northOnPage(): Pair<Double, Double> = Pair(-sinA, cosA)
 
     val angleDeg get() = Math.toDegrees(angleRad)
+
+    /** The samples split back into the legs they came from, so a polyline never joins two. */
+    fun trackSegments(): List<List<L93>> = (0 until segmentStart.size - 1)
+        .map { samples.subList(segmentStart[it], segmentStart[it + 1]) }
+        .filter { it.isNotEmpty() }
+
+    /** Smallest rectangle in the page frame holding every page. */
+    fun pagesBounds(): Rect = pages.map { it.rect }.reduce { a, b -> a.union(b) }
 }
 
 object PageLayout {
@@ -152,6 +162,7 @@ object PageLayout {
             pages = pages,
             trackBounds = Bounds.of(samples),
             samples = samples,
+            segmentStart = segmentStart,
         )
     }
 

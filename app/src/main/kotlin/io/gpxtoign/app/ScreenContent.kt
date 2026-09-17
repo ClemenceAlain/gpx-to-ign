@@ -140,7 +140,7 @@ fun ScreenContent(
                         }
                     }
                     RowSeparator()
-                    SettingsRow(title = "Plan d'ensemble") {
+                    SettingsRow(title = "Plan d'ensemble dans le PDF") {
                         AppSwitch(state.settings.includeIndexPage) { value ->
                             actions.update { it.copy(includeIndexPage = value) }
                         }
@@ -166,7 +166,8 @@ fun ScreenContent(
                 }
                 SectionFootnote(
                     "La rotation cherche l'orientation qui tient sur le moins de pages. " +
-                        "Une flèche indique le nord sur chaque carte.",
+                        "Une flèche indique le nord sur chaque carte. Le plan d'ensemble " +
+                        "est affiché ci-dessous ; ne l'ajoutez au PDF que pour l'imprimer.",
                 )
 
                 SectionHeader("Source")
@@ -276,6 +277,10 @@ private fun PlanSummary(state: UiState, actions: ScreenActions) {
     }
 
     Section {
+        state.preview?.let {
+            PlanPreviewMap(it)
+            RowSeparator(inset = false)
+        }
         Column(
             Modifier
                 .fillMaxWidth()
@@ -303,7 +308,8 @@ private fun PlanSummary(state: UiState, actions: ScreenActions) {
         }
     }
     SectionFootnote(
-        "${estimate.tiles} tuiles IGN" +
+        "Les pages sont numérotées dans l'ordre de la marche. " +
+            "${estimate.tiles} tuiles IGN" +
             if (state.planning) " · recalcul en cours" else ". Préférez le Wi-Fi.",
     )
     Spacer(Modifier.height(24.dp))

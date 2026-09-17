@@ -38,7 +38,13 @@ data class JobOptions(
      * difference on place names and contour lines.
      */
     val jpegQuality: Int = 72,
-    val includeIndexPage: Boolean = true,
+    /**
+     * Print an overview page showing every page footprint, ahead of the map pages.
+     *
+     * Off by default: the app draws the same plan on screen before the job starts, which is
+     * where it is actually useful, and a printed copy costs a page and a download.
+     */
+    val includeIndexPage: Boolean = false,
     val title: String? = null,
 ) {
     /** The overview is an index, not something to navigate by, so it is compressed harder. */
@@ -188,7 +194,7 @@ class JobRunner(
      * fewer tiles to download.
      */
     private fun overviewFrame(layout: Layout, paper: PaperSpec): Pair<Rect, Int> {
-        val union = layout.pages.map { it.rect }.reduce { a, b -> a.union(b) }
+        val union = layout.pagesBounds()
         val framed = fitToPage(union.expand(union.width * 0.04), paper)
         return framed to TileGrid.matrixFor(framed.width / OVERVIEW_WIDTH_PX)
     }
