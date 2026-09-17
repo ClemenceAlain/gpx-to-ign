@@ -18,7 +18,18 @@ describe('XorWowRandom', () => {
   it('matches kotlin for nextBoolean', () => {
     const rng = new XorWowRandom(0x6a7e1e15)
     expect([...Array(12)].map(() => rng.nextBoolean())).toEqual([
-      true, true, true, true, true, true, false, false, false, true, false, true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
     ])
   })
 

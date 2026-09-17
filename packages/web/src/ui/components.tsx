@@ -101,7 +101,13 @@ export function SegmentedControl({
   }, [selectedIndex, options])
 
   return (
-    <div className="segmented" role="radiogroup" aria-label={label} ref={track} data-testid={testId}>
+    <div
+      className="segmented"
+      role="radiogroup"
+      aria-label={label}
+      ref={track}
+      data-testid={testId}
+    >
       <div
         className="segmented-pill"
         style={{ width: `${pill.width}px`, transform: `translateX(${pill.x}px)` }}

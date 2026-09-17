@@ -9,7 +9,9 @@
     "test": "vitest run",
     "typecheck": "tsc --build --force && tsc --noEmit -p packages/core/tsconfig.test.json",
     "dev": "npm run dev --workspace @gpx-to-ign/web",
-    "test:web": "npm run -w @gpx-to-ign/web test"
+    "test:web": "npm run -w @gpx-to-ign/web test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

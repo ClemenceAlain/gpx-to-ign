@@ -142,9 +142,7 @@ export class PdfDocument {
       this.write(latin1(`${String(offset).padStart(10, '0')} 00000 n \n`))
     }
     this.write(
-      latin1(
-        `trailer\n<< /Size ${size} /Root ${CATALOG} 0 R >>\n` + `startxref\n${xref}\n%%EOF\n`,
-      ),
+      latin1(`trailer\n<< /Size ${size} /Root ${CATALOG} 0 R >>\n` + `startxref\n${xref}\n%%EOF\n`),
     )
   }
 

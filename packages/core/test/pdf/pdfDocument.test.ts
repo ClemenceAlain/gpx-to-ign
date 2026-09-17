@@ -58,7 +58,15 @@ describe('PdfDocument', () => {
     const bytes = write((d) => {
       for (let i = 0; i < 3; i++) {
         d.addPage((page) => {
-          page.drawJpeg(Uint8Array.from({ length: 16 }, (_, k) => k), 4, 4, 0, 0, 10, 10)
+          page.drawJpeg(
+            Uint8Array.from({ length: 16 }, (_, k) => k),
+            4,
+            4,
+            0,
+            0,
+            10,
+            10,
+          )
           page.text(10, 10, 8, `page ${i}`)
         })
       }

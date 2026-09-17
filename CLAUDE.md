@@ -16,6 +16,14 @@ Being rebuilt from Kotlin to a TypeScript monorepo — see `REBUILD-PLAN.md`.
 - **Print geometry uses Lambert-93 (EPSG:2154), not Web Mercator.** Constant scale across
   metropolitan France, so an A4 page is always the same ground rectangle and 1:25000 is
   literally true.
+- **No kilometre grid on the map pages.** Removed on request 2026-09-17: a blue lattice over
+  every square centimetre of an already dense map. The scale bar is an exact kilometre and is
+  now the only thing a ruler goes against. The footer says `1:25000 · © IGN — SCAN25®` and no
+  longer claims a grid.
+- **Nothing heavy runs on the main thread.** Planning and the whole job each have a worker.
+  Measured on a 30 km trace: planning inline blocked a frame for 663 ms, in a worker 17 ms —
+  against a 17 ms idle baseline. Generating blocks 50 ms. A browser test fails the build if a
+  slider drag ever blocks more than 150 ms again.
 
 ## Measured constants — do not "clean up"
 
@@ -112,9 +120,11 @@ hand-built controls, no component library. Full rules in `REBUILD-PLAN.md`.
 
 ## Where the rebuild is
 
-Branch `rebuild-typescript`. Last commit `29d31a1`.
+Branch `rebuild-typescript`. Last commit `eebdc6b`.
 `npx vitest run` => 103 passing. `npm run typecheck` clean.
-`npm run -w @gpx-to-ign/web test` => 8 Playwright tests passing.
+`npm run -w @gpx-to-ign/web test` => 10 Playwright tests passing.
+`npx prettier --check .` clean — the config is `.prettierrc.json`; without it Prettier
+reformats the whole repo to its own defaults.
 
 **Done** — ported test-first from Kotlin, each module's Kotlin test translated,
 watched fail, then the implementation:
@@ -128,7 +138,7 @@ watched fail, then the implementation:
 | render | `packages/core/src/render/{image,mapRenderer}.ts` |
 | layout | `packages/core/src/layout/{rect,random,cover,pageLayout,planPreview}.ts` |
 | job | `packages/core/src/job.ts` — plan / estimate / run, checkpointed |
-| web | `packages/web` — the real app: screen, preview, platform seams |
+| web | `packages/web` — the real app: screen, preview, workers, platform seams |
 
 **Decisions taken while porting, do not re-litigate:**
 - The raster is `RgbaImage` (8-bit RGBA in a `Uint8ClampedArray`), not Kotlin's packed ARGB
@@ -161,6 +171,15 @@ watched fail, then the implementation:
 **Headless Chrome defines `showSaveFilePicker` but nothing can answer its dialog**, so every
 browser test deletes it in an init script and exercises the `<a download>` fallback instead.
 A test that forgets this hangs until the timeout with no useful error.
+
+**The save picker is asked *before* the job runs.** It needs transient user activation and a
+job takes half a minute, so called afterwards it throws — having already spent the download.
+
+**The screen is one column on a phone and two from 900 px up**, preview on the right, its
+height pinned to the controls column by a `ResizeObserver` publishing `--controls-height`.
+CSS grid can stretch the shorter column but has no way to cap the taller one. Beside the
+preview the summary collapses to one quiet line, because every row it costs there is a row
+the map does not get.
 
 `packages/web/src/skeleton.ts` is no longer the app — it is the measurement harness the
 `pageSizes` run drives. The app is `ui/App.tsx`.

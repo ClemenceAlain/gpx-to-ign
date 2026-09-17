@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GpxFile } from '../../src/gpx/gpx.js'
-import {
-  A4_25K,
-  DEFAULT_LAYOUT_OPTIONS,
-  plan,
-  type Layout,
-} from '../../src/layout/pageLayout.js'
+import { A4_25K, DEFAULT_LAYOUT_OPTIONS, plan, type Layout } from '../../src/layout/pageLayout.js'
 import { planPreview } from '../../src/layout/planPreview.js'
 import { contains, height, width } from '../../src/layout/rect.js'
 import { line, track } from './tracks.js'

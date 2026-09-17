@@ -44,11 +44,12 @@ function draw(
   title: string | null = null,
 ): string {
   const canvas = new PdfPage(mm(A4_25K.widthMm), mm(A4_25K.heightMm))
-  new PageDecor({ frame: pageFrame(angleRad), paper: A4_25K, attribution: ATTRIBUTION, title }).draw(
-    canvas,
-    mapPage,
-    total,
-  )
+  new PageDecor({
+    frame: pageFrame(angleRad),
+    paper: A4_25K,
+    attribution: ATTRIBUTION,
+    title,
+  }).draw(canvas, mapPage, total)
   let s = ''
   for (const b of canvas.contentBytes()) s += String.fromCharCode(b)
   return s
@@ -78,16 +79,13 @@ describe('PageDecor', () => {
     expect(content).toContain(`${fmt(x)} ${fmt(y)} ${fmt(mm(200))} ${fmt(mm(277))} re S`)
   })
 
-  it('draws the Lambert-93 kilometre grid one line per kilometre', () => {
+  it('draws no kilometre grid over the map', () => {
+    // Removed on request: a blue lattice over every square centimetre of an already dense
+    // map. The only stroked line left on the page is the north arrow's needle.
     const content = draw()
-    // 5000 x 6925 m of ground, starting on a round kilometre: 6 verticals, 7 horizontals.
-    const lines = content.match(/ m .* l S/g) ?? []
-    const gridLines = lines.length
-    expect(gridLines).toBeGreaterThanOrEqual(13)
-    // Labelled with the kilometre index, not the metre.
-    expect(content).toContain(pdfString('500'))
-    expect(content).toContain(pdfString('6500'))
-    expect(content).not.toContain(pdfString('500000'))
+    expect(content.match(/ m .* l S/g) ?? []).toHaveLength(1)
+    expect(content).not.toContain(pdfString('500'))
+    expect(content).not.toContain(pdfString('6500'))
   })
 
   it('labels the north arrow with the rotation the reader must undo', () => {
@@ -96,10 +94,11 @@ describe('PageDecor', () => {
     expect(draw(page(), 0)).toContain(pdfString('0°'))
   })
 
-  it('writes the page number, scale, attribution and grid in the footer', () => {
+  it('writes the page number, scale and attribution in the footer', () => {
     const content = draw(page(3), 0, 7)
     expect(content).toContain(pdfString('Page 3 / 7'))
-    expect(content).toContain(pdfString(`1:25000 · ${ATTRIBUTION} · grille Lambert-93 (1 km)`))
+    expect(content).toContain(pdfString(`1:25000 · ${ATTRIBUTION}`))
+    expect(content).not.toContain('grille Lambert-93')
   })
 
   it('adds the title after the page number when there is one', () => {

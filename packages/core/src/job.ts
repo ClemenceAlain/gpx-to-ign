@@ -287,8 +287,7 @@ export class JobRunner {
     const heightPx = Math.round(mapHeightM(paper) / NATIVE_RESOLUTION)
 
     const saved = await this.pageStore?.get(jobId, page.number, options.jpegQuality)
-    const blocks =
-      saved ?? (await renderer.render(page.rect, layout.angleRad, widthPx, heightPx))
+    const blocks = saved ?? (await renderer.render(page.rect, layout.angleRad, widthPx, heightPx))
     if (saved === null || saved === undefined) {
       await this.pageStore?.put(jobId, page.number, options.jpegQuality, blocks)
     }
@@ -314,10 +313,7 @@ export class JobRunner {
     const paper = options.paper
     const { frame, matrix } = overviewFrame(layout, paper)
     const quality = overviewQuality(options)
-    const widthPx = Math.min(
-      Math.max(Math.round(width(frame) / resolution(matrix)), 256),
-      3000,
-    )
+    const widthPx = Math.min(Math.max(Math.round(width(frame) / resolution(matrix)), 256), 3000)
     const heightPx = Math.max(Math.round((widthPx * height(frame)) / width(frame)), 256)
 
     // Page 0 in the checkpoint: the overview is as expensive to redraw as a map page.

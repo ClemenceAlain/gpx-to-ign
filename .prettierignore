@@ -1,0 +1,12 @@
+dist/
+node_modules/
+packages/web/out/
+packages/core/dist/
+core/
+app/
+cli/
+build/
+package-lock.json
+README.md
+REBUILD-PLAN.md
+CLAUDE.md

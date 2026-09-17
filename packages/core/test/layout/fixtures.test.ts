@@ -40,14 +40,18 @@ describe('the Kotlin oracle, on the real fixtures', () => {
   for (const [name, expected] of Object.entries(ORACLE)) {
     it(`plans ${name} exactly as Kotlin does`, () => {
       const path = fileURLToPath(new URL(`../../../../fixtures/${name}`, import.meta.url))
-      const layout = plan([parseGpx(name, readFileSync(path, 'utf8'))], A4_25K, DEFAULT_LAYOUT_OPTIONS)
+      const layout = plan(
+        [parseGpx(name, readFileSync(path, 'utf8'))],
+        A4_25K,
+        DEFAULT_LAYOUT_OPTIONS,
+      )
 
       expect(layout.samples).toHaveLength(expected.samples)
       expect(layout.angleDeg).toBeCloseTo(expected.angleDeg, 4)
       expect(layout.pages).toHaveLength(expected.pages)
-      expect(
-        layout.pages.map((p) => [p.rect.uMin, p.rect.vMin, p.rect.uMax, p.rect.vMax]),
-      ).toEqual(expected.rects.map((r) => r.map((n) => expect.closeTo(n, 1))))
+      expect(layout.pages.map((p) => [p.rect.uMin, p.rect.vMin, p.rect.uMax, p.rect.vMax])).toEqual(
+        expected.rects.map((r) => r.map((n) => expect.closeTo(n, 1))),
+      )
     })
   }
 })

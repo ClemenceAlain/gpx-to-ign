@@ -18,7 +18,8 @@ export class IndexedDbPageStore implements PageStore {
     this.opened ??= new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION)
       request.onupgradeneeded = () => {
-        if (!request.result.objectStoreNames.contains(STORE)) request.result.createObjectStore(STORE)
+        if (!request.result.objectStoreNames.contains(STORE))
+          request.result.createObjectStore(STORE)
       }
       request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error ?? new Error('indexedDB refusé'))

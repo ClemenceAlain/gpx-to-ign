@@ -164,7 +164,8 @@ export class Cover {
       }
       const head = uncovered[0]!
       const chosen =
-        best ?? centeredOn(this.u[head]!, this.v[head]!, this.u[head]!, this.v[head]!, this.w, this.h)
+        best ??
+        centeredOn(this.u[head]!, this.v[head]!, this.u[head]!, this.v[head]!, this.w, this.h)
 
       // Shrink-wrap onto what it actually covers, which buys slack for free.
       scratch.length = 0

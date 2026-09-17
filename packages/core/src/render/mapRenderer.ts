@@ -142,7 +142,13 @@ export class MapRenderer {
         mosaic.sampleInto(gx, gy, out.data, (py * w + px) * 4)
       }
     }
-    return { x: x0, y: y0, width: w, height: h, jpeg: await this.codec.encodeJpeg(out, this.quality) }
+    return {
+      x: x0,
+      y: y0,
+      width: w,
+      height: h,
+      jpeg: await this.codec.encodeJpeg(out, this.quality),
+    }
   }
 
   private async mosaicFor(

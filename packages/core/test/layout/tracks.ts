@@ -18,5 +18,7 @@ export function track(offsets: readonly (readonly [number, number])[]): GpxFile 
 }
 
 export function line(dx: number, dy: number, steps = 200): GpxFile {
-  return track([...Array(steps + 1)].map((_, i): [number, number] => [(dx * i) / steps, (dy * i) / steps]))
+  return track(
+    [...Array(steps + 1)].map((_, i): [number, number] => [(dx * i) / steps, (dy * i) / steps]),
+  )
 }

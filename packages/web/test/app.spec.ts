@@ -116,6 +116,52 @@ test('replans live when the margin moves, still without a request', async ({ pag
   expect(requested).toBe(0)
 })
 
+test('stays responsive while the margin slider is dragged', async ({ page }) => {
+  await open(page)
+  await page.getByTestId('gpx').setInputFiles(FIXTURE)
+  await expect(page.getByTestId('preview')).toBeVisible()
+
+  // Planning costs ~300 ms. Run on the main thread it froze the one control the live
+  // preview exists to serve, so it runs in a worker and only the newest request survives.
+  const worstFrameMs = await page.evaluate(async () => {
+    const slider = document.querySelector('[data-testid="margin"]') as HTMLInputElement
+    let worst = 0
+    let last = performance.now()
+    let running = true
+    const tick = (): void => {
+      const now = performance.now()
+      worst = Math.max(worst, now - last)
+      last = now
+      if (running) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+
+    for (let margin = 300; margin <= 1500; margin += 50) {
+      slider.value = String(margin)
+      slider.dispatchEvent(new Event('input', { bubbles: true }))
+      slider.dispatchEvent(new Event('change', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 16))
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    running = false
+    return worst
+  })
+  expect(worstFrameMs).toBeLessThan(150)
+})
+
+test('does not replan when only the title changes', async ({ page }) => {
+  await open(page)
+  await page.getByTestId('gpx').setInputFiles(FIXTURE)
+  await expect(page.getByTestId('preview')).toBeVisible()
+  await page.getByTestId('advanced').click()
+
+  // The title is printed in the footer and changes no rectangle and no tile. Replanning on
+  // every keystroke would throw away a 300 ms plan for nothing.
+  await page.getByTestId('title').fill('Traversée de Normandie')
+  await expect(page.getByTestId('planning')).toHaveCount(0)
+  await expect(page.getByTestId('preview')).toBeVisible()
+})
+
 test('accepts several traces at once', async ({ page }) => {
   await open(page)
   await page.getByTestId('gpx').setInputFiles([FIXTURE, SECOND])

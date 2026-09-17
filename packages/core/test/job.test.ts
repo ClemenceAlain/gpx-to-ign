@@ -219,11 +219,16 @@ describe('run', () => {
 
   it('re-renders when the quality changes, because the checkpoint is keyed on it', async () => {
     const store = new MemoryPageStore()
-    const runner = (f: TileFetcher) => new JobRunner({ fetcher: f, codec: stubCodec, pageStore: store })
+    const runner = (f: TileFetcher) =>
+      new JobRunner({ fetcher: f, codec: stubCodec, pageStore: store })
     await runner(new CountingFetcher()).run(layout, options(), new ArrayBufferSink())
 
     const again = new CountingFetcher()
-    const result = await runner(again).run(layout, options({ jpegQuality: 85 }), new ArrayBufferSink())
+    const result = await runner(again).run(
+      layout,
+      options({ jpegQuality: 85 }),
+      new ArrayBufferSink(),
+    )
     expect(result.pagesFromCheckpoint).toBe(0)
     expect(again.tilesDownloaded).toBeGreaterThan(0)
   })

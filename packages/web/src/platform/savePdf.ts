@@ -29,15 +29,24 @@ interface FilePickerWindow {
   }) => Promise<FileSystemFileHandle>
 }
 
+/** Somewhere to put the finished PDF, chosen before the job runs. */
+export interface PdfTarget {
+  write(blob: Blob): Promise<string>
+}
+
 /**
- * Saves the PDF where the user asks.
+ * Asks where to save, *before* the job starts.
  *
- * The File System Access API gives a real "save as" and a name the app can report back;
- * Firefox and Safari have no such thing, so the anchor fallback drops it in Downloads.
+ * `showSaveFilePicker` needs transient user activation, and a job takes half a minute — so
+ * called afterwards it throws, having already spent the download. Picking first also
+ * matches what the Android app did: ask, then work.
  *
- * @returns the file name written, or null if the user cancelled.
+ * Firefox and Safari have no picker, so the anchor fallback drops the file in Downloads and
+ * there is nothing to ask.
+ *
+ * @returns null if the user cancelled the dialog.
  */
-export async function savePdf(blob: Blob, suggestedName: string): Promise<string | null> {
+export async function pickPdfTarget(suggestedName: string): Promise<PdfTarget | null> {
   const picker = (globalThis as unknown as FilePickerWindow).showSaveFilePicker
   if (typeof picker === 'function') {
     try {
@@ -45,10 +54,14 @@ export async function savePdf(blob: Blob, suggestedName: string): Promise<string
         suggestedName,
         types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
       })
-      const writable = await handle.createWritable()
-      await writable.write(blob)
-      await writable.close()
-      return handle.name
+      return {
+        async write(blob) {
+          const writable = await handle.createWritable()
+          await writable.write(blob)
+          await writable.close()
+          return handle.name
+        },
+      }
     } catch (e) {
       // AbortError is the user closing the dialog, which is not a failure.
       if (e instanceof DOMException && e.name === 'AbortError') return null
@@ -56,15 +69,19 @@ export async function savePdf(blob: Blob, suggestedName: string): Promise<string
     }
   }
 
-  const url = URL.createObjectURL(blob)
-  try {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = suggestedName
-    a.click()
-    return suggestedName
-  } finally {
-    URL.revokeObjectURL(url)
+  return {
+    async write(blob) {
+      const url = URL.createObjectURL(blob)
+      try {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = suggestedName
+        a.click()
+        return suggestedName
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+    },
   }
 }
 

@@ -375,6 +375,20 @@ button.row:active {
   text-align: center;
 }
 
+.summary-line {
+  color: var(--secondary-label);
+  display: none;
+  font-size: var(--text-subheadline);
+  padding: 12px var(--row-inset);
+  text-align: center;
+}
+
+.summary-line strong {
+  color: var(--accent);
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+
 .figure strong {
   color: var(--accent);
   display: block;
@@ -451,5 +465,70 @@ button.row:active {
 @media (prefers-reduced-motion: reduce) {
   .disclosure {
     transition: none;
+  }
+}
+
+/* --- wide screens: the preview moves beside the controls --------------------- */
+
+/*
+ * A desktop browser is the one place with room for both, and the preview is the thing you
+ * watch while you move the margin. Below this width it stays a single column, which is what
+ * the phone and the APK get — the same build, told apart by the viewport, not the platform.
+ */
+@media (min-width: 900px) {
+  .screen {
+    align-items: start;
+    column-gap: 32px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    max-width: 1100px;
+  }
+
+  .screen > .header {
+    grid-column: 1 / -1;
+  }
+
+  /* The controls are taller than the preview; letting it scroll away would defeat the point. */
+  .preview-column {
+    position: sticky;
+    top: 28px;
+  }
+
+  .column > .section-header:first-child {
+    margin-top: 20px;
+  }
+}
+
+@media (min-width: 900px) {
+  /*
+   * The preview column is exactly as tall as the controls beside it: the map absorbs
+   * whatever the summary and the button leave over, rather than the column running a screen
+   * and a half past the settings it belongs to.
+   */
+  .preview-column {
+    display: flex;
+    flex-direction: column;
+    height: var(--controls-height, auto);
+  }
+
+  .preview-column > .section:first-of-type {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .preview-column .preview {
+    flex: 1 1 auto;
+    min-height: 160px;
+  }
+
+  /* One quiet line instead of a figure and three rows: four fewer rows is four more of map. */
+  .summary-stacked {
+    display: none;
+  }
+
+  .summary-line {
+    display: block;
   }
 }

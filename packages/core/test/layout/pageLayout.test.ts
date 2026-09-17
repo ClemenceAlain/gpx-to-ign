@@ -27,10 +27,7 @@ function expectCoveredWithMargin(layout: Layout): void {
     for (const page of layout.pages) {
       const r = page.rect
       if (!contains(r, u, v)) continue
-      clearance = Math.max(
-        clearance,
-        Math.min(u - r.uMin, r.uMax - u, v - r.vMin, r.vMax - v),
-      )
+      clearance = Math.max(clearance, Math.min(u - r.uMin, r.uMax - u, v - r.vMin, r.vMax - v))
     }
     expect(
       clearance,
@@ -171,7 +168,20 @@ describe('plan', () => {
   })
 
   it('splits samples back into the legs they came from', () => {
-    const layout = plan([track([[0, 0], [0, 4_000]]), track([[9_000, 0], [9_000, 3_000]])], paper, options)
+    const layout = plan(
+      [
+        track([
+          [0, 0],
+          [0, 4_000],
+        ]),
+        track([
+          [9_000, 0],
+          [9_000, 3_000],
+        ]),
+      ],
+      paper,
+      options,
+    )
     const segments = layout.trackSegments()
     expect(segments).toHaveLength(2)
     expect(segments.every((s) => s.length > 0)).toBe(true)

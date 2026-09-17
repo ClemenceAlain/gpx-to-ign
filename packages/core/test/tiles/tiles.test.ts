@@ -78,7 +78,9 @@ describe('HttpTileFetcher', () => {
     let calls = 0
     const fetchImpl = vi.fn(async () => {
       calls++
-      return calls < 3 ? new Response('slow down', { status: 429 }) : imageResponse(Uint8Array.of(9))
+      return calls < 3
+        ? new Response('slow down', { status: 429 })
+        : imageResponse(Uint8Array.of(9))
     })
     const fetcher = new HttpTileFetcher({
       fetchImpl: fetchImpl as unknown as typeof fetch,

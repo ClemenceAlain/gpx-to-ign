@@ -23,7 +23,9 @@ export class CacheTileStore implements TileCache {
 
   async put(source: MapSource, tile: TileId, bytes: Uint8Array): Promise<void> {
     const body = bytes.slice().buffer as ArrayBuffer
-    await (await this.cache()).put(
+    await (
+      await this.cache()
+    ).put(
       urlFor(source, tile),
       new Response(body, { headers: { 'content-type': `image/${source.format.split('/')[1]}` } }),
     )

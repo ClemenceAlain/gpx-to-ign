@@ -28,7 +28,7 @@ test('measures the chroma switch on real SCAN25 tiles', async ({ page }) => {
 
     /** Luma and chroma sampling factors out of the SOF0 marker. */
     function sampling(bytes: Uint8Array): string {
-      for (let k = 2; k < bytes.length - 1; ) {
+      for (let k = 2; k < bytes.length - 1;) {
         if (bytes[k] !== 0xff) {
           k++
           continue
@@ -37,7 +37,7 @@ test('measures the chroma switch on real SCAN25 tiles', async ({ page }) => {
         if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
           const at = k + 10
           const y = bytes[at + 1]!
-          return (y >> 4) === 1 && (y & 0xf) === 1 ? '4:4:4' : `${y >> 4}x${y & 0xf}`
+          return y >> 4 === 1 && (y & 0xf) === 1 ? '4:4:4' : `${y >> 4}x${y & 0xf}`
         }
         k += 2 + ((bytes[k + 2]! << 8) | bytes[k + 3]!)
       }

@@ -176,11 +176,7 @@ const SIDEWAYS = 1.0
 const TOUCH = 0.25
 const MIN_SPACING = 5.0
 
-export function plan(
-  files: readonly GpxFile[],
-  paper: PaperSpec,
-  options: LayoutOptions,
-): Layout {
+export function plan(files: readonly GpxFile[], paper: PaperSpec, options: LayoutOptions): Layout {
   const { samples, segmentStart } = sample(files, options.densifyM)
   if (samples.length === 0) throw new Error('no track points to lay out')
 
@@ -219,7 +215,8 @@ export function plan(
   for (const candidate of shortlist) {
     const cover = coverFor(samples, segmentStart, candidate.angle, effectiveW, effectiveH)
     const solved = cover.solve(true)
-    if (!cover.coversAll(solved)) throw new Error('internal error: page plan misses part of the track')
+    if (!cover.coversAll(solved))
+      throw new Error('internal error: page plan misses part of the track')
     if (rects === null || solved.length < rects.length) {
       angle = candidate.angle
       rects = solved
@@ -232,7 +229,8 @@ export function plan(
     const cover = coverFor(samples, segmentStart, angle, effectiveW, effectiveH)
     const improved = cover.solve(true, RESTARTS)
     if (improved.length < rects!.length) {
-      if (!cover.coversAll(improved)) throw new Error('internal error: restart plan misses the track')
+      if (!cover.coversAll(improved))
+        throw new Error('internal error: restart plan misses the track')
       rects = improved
     }
   }
