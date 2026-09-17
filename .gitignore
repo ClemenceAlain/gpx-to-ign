@@ -1,10 +1,12 @@
+# Kotlin / Gradle (removed at cutover)
 .gradle/
 build/
-local.properties
-*.iml
-.idea/
 .kotlin/
-captures/
-out/
-release.keystore
+local.properties
+
+# Node
+node_modules/
+dist/
+
+# Tile cache — never commit ~70 MB of IGN rasters
 .tilecache/
