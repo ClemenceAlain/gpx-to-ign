@@ -1,0 +1,455 @@
+/*
+ * The iOS system palette, semantic names and all — ported from the Compose app's Theme.kt.
+ * Light and dark are two values of one token. Never hardcode a colour in a component.
+ */
+:root {
+  --grouped-background: #f2f2f7;
+  --card: #ffffff;
+  --card-pressed: #e5e5ea;
+  --label: #000000;
+  --secondary-label: rgba(60, 60, 67, 0.6);
+  --tertiary-label: rgba(60, 60, 67, 0.3);
+  --separator: #c6c6c8;
+  --accent: #007aff;
+  --accent-soft: #e8f1ff;
+  --success: #34c759;
+  --danger: #ff3b30;
+  --fill: #e9e9eb;
+
+  /* The red of the printed page rectangles. It exists to match the paper, and is never UI chrome. */
+  --page-outline: #d91919;
+  --page-wash: rgba(217, 25, 25, 0.08);
+
+  /* The San Francisco scale, in rem so browser and OS text-size settings work. */
+  --text-large-title: 2.125rem;
+  --text-title3: 1.25rem;
+  --text-body: 1.0625rem;
+  --text-callout: 1rem;
+  --text-subheadline: 0.9375rem;
+  --text-footnote: 0.8125rem;
+  --text-caption: 0.75rem;
+  --text-figure: 2.75rem;
+
+  --radius: 10px;
+  --row-inset: 16px;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --grouped-background: #000000;
+    --card: #1c1c1e;
+    --card-pressed: #2c2c2e;
+    --label: #ffffff;
+    --secondary-label: rgba(235, 235, 245, 0.6);
+    --tertiary-label: rgba(235, 235, 245, 0.3);
+    --separator: #38383a;
+    --accent: #0a84ff;
+    --accent-soft: #0a2540;
+    --success: #30d158;
+    --danger: #ff453a;
+    --fill: #2c2c2e;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--grouped-background);
+  color: var(--label);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: var(--text-body);
+  line-height: 1.3;
+  margin: 0;
+}
+
+.screen {
+  margin: 0 auto;
+  max-width: 560px;
+  padding: 28px 16px calc(40px + env(safe-area-inset-bottom));
+}
+
+/* --- header ------------------------------------------------------------------ */
+
+.header {
+  padding: 0 16px;
+}
+
+.header h1 {
+  font-size: var(--text-large-title);
+  font-weight: 700;
+  letter-spacing: 0.012em;
+  margin: 0;
+}
+
+.header p {
+  color: var(--secondary-label);
+  font-size: var(--text-subheadline);
+  margin: 4px 0 0;
+}
+
+/* --- grouped inset list ------------------------------------------------------ */
+
+.section-header {
+  color: var(--secondary-label);
+  font-size: var(--text-footnote);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  margin: 28px 0 8px;
+  padding: 0 16px;
+  text-transform: uppercase;
+}
+
+.section {
+  background: var(--card);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.section-footnote {
+  color: var(--secondary-label);
+  font-size: var(--text-footnote);
+  margin: 8px 0 0;
+  padding: 0 16px;
+}
+
+/* Inset to the label's left edge, and stopping before the section's right edge, as on iOS. */
+.separator {
+  background: var(--separator);
+  height: 0.5px;
+  margin-left: var(--row-inset);
+}
+
+.separator.full {
+  margin-left: 0;
+}
+
+.row {
+  align-items: center;
+  background: none;
+  border: none;
+  color: inherit;
+  display: flex;
+  font: inherit;
+  gap: 12px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 10px var(--row-inset);
+  text-align: left;
+  width: 100%;
+}
+
+button.row {
+  cursor: pointer;
+}
+
+button.row:active {
+  background: var(--card-pressed);
+}
+
+/* Title over subtitle, and the pair allowed to shrink before the value on the right does. */
+.row-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.row-title {
+  font-size: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+.row-subtitle {
+  color: var(--secondary-label);
+  font-size: var(--text-footnote);
+  margin-top: 2px;
+}
+
+.row-value {
+  color: var(--secondary-label);
+  font-size: var(--text-body);
+  white-space: nowrap;
+}
+
+.row-accent {
+  color: var(--accent);
+}
+
+.row-danger {
+  color: var(--danger);
+}
+
+.row-success {
+  color: var(--success);
+}
+
+/* --- controls ---------------------------------------------------------------- */
+
+.segmented {
+  background: var(--fill);
+  border-radius: 9px;
+  display: flex;
+  padding: 2px;
+  position: relative;
+}
+
+.segmented-pill {
+  background: var(--card);
+  border-radius: 7px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  bottom: 2px;
+  left: 2px;
+  position: absolute;
+  top: 2px;
+  transition: transform 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segmented-pill {
+    transition: none;
+  }
+}
+
+.segmented button {
+  background: none;
+  border: none;
+  color: var(--label);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-subheadline);
+  min-height: 28px;
+  padding: 4px 8px;
+  position: relative;
+  flex: 1 1 0;
+  white-space: nowrap;
+}
+
+.segmented button[aria-checked='true'] {
+  font-weight: 600;
+}
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
+  display: block;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.slider::-webkit-slider-runnable-track {
+  background: var(--fill);
+  border-radius: 2px;
+  height: 4px;
+}
+
+.slider::-moz-range-track {
+  background: var(--fill);
+  border-radius: 2px;
+  height: 4px;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  height: 26px;
+  margin-top: -11px;
+  width: 26px;
+}
+
+.slider::-moz-range-thumb {
+  background: #ffffff;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  height: 26px;
+  width: 26px;
+}
+
+.switch {
+  background: var(--fill);
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  flex: none;
+  height: 31px;
+  padding: 2px;
+  transition: background-color 200ms ease-out;
+  width: 51px;
+}
+
+.switch[aria-checked='true'] {
+  background: var(--success);
+}
+
+.switch span {
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  display: block;
+  height: 27px;
+  transition: transform 200ms ease-out;
+  width: 27px;
+}
+
+.switch[aria-checked='true'] span {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch span {
+    transition: none;
+  }
+}
+
+.chevron {
+  color: var(--tertiary-label);
+  flex: none;
+  transition: transform 200ms ease-out;
+}
+
+.chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.text-field {
+  background: none;
+  border: none;
+  color: var(--label);
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: var(--text-body);
+  min-width: 0;
+  outline: none;
+  text-align: right;
+}
+
+.text-field::placeholder {
+  color: var(--tertiary-label);
+}
+
+.primary-button {
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: 600;
+  min-height: 50px;
+  width: 100%;
+}
+
+.primary-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+:where(button, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- plan preview ------------------------------------------------------------ */
+
+.preview {
+  display: block;
+  width: 100%;
+}
+
+.figure {
+  padding: 22px 16px 18px;
+  text-align: center;
+}
+
+.figure strong {
+  color: var(--accent);
+  display: block;
+  font-size: var(--text-figure);
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.figure span {
+  color: var(--secondary-label);
+  font-size: var(--text-subheadline);
+}
+
+.spinner-row {
+  align-items: center;
+  color: var(--secondary-label);
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 22px;
+}
+
+.spinner {
+  animation: spin 800ms linear infinite;
+  border: 2px solid var(--fill);
+  border-radius: 50%;
+  border-top-color: var(--accent);
+  height: 18px;
+  width: 18px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2400ms;
+  }
+}
+
+.progress {
+  background: var(--fill);
+  border-radius: 2px;
+  height: 4px;
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.progress div {
+  background: var(--accent);
+  border-radius: 2px;
+  height: 100%;
+  transition: width 200ms ease-out;
+}
+
+.disclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease-out;
+}
+
+.disclosure.open {
+  grid-template-rows: 1fr;
+}
+
+.disclosure > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure {
+    transition: none;
+  }
+}

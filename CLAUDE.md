@@ -112,9 +112,9 @@ hand-built controls, no component library. Full rules in `REBUILD-PLAN.md`.
 
 ## Where the rebuild is
 
-Branch `rebuild-typescript`. Last commit `8541749`.
-`npx vitest run` => 91 passing. `npm run typecheck` clean.
-`npm run -w @gpx-to-ign/web test` => 2 Playwright tests passing.
+Branch `rebuild-typescript`. Last commit `29d31a1`.
+`npx vitest run` => 103 passing. `npm run typecheck` clean.
+`npm run -w @gpx-to-ign/web test` => 8 Playwright tests passing.
 
 **Done** — ported test-first from Kotlin, each module's Kotlin test translated,
 watched fail, then the implementation:
@@ -127,7 +127,8 @@ watched fail, then the implementation:
 | tiles | `packages/core/src/tiles/{mapSource,tileFetcher}.ts` |
 | render | `packages/core/src/render/{image,mapRenderer}.ts` |
 | layout | `packages/core/src/layout/{rect,random,cover,pageLayout,planPreview}.ts` |
-| web | `packages/web` — the walking skeleton, see below |
+| job | `packages/core/src/job.ts` — plan / estimate / run, checkpointed |
+| web | `packages/web` — the real app: screen, preview, platform seams |
 
 **Decisions taken while porting, do not re-litigate:**
 - The raster is `RgbaImage` (8-bit RGBA in a `Uint8ClampedArray`), not Kotlin's packed ARGB
@@ -149,13 +150,20 @@ watched fail, then the implementation:
   blank page in every real viewer. That shipped once. `pdfDocument.test.ts` asserts the
   zlib header, and so does the Playwright skeleton test.
 
-**The walking skeleton.** `packages/web` renders one north-up A4 page and downloads a PDF.
-Two loops, deliberately separate:
+**Two test loops, deliberately separate:**
 - `npm run -w @gpx-to-ign/web test` routes `data.geopf.fr` to a synthetic tile. Free, fast,
   deterministic. **Use this one while iterating.**
-- `npm run -w @gpx-to-ign/web test:real` hits IGN once and writes
-  `packages/web/out/ruler-page1.pdf`. 108 tiles, 0 missing, 0.93 MB at q72. Re-running it
-  within one browser session costs 0 downloads — the Cache API resume path works.
+- `npm run -w @gpx-to-ign/web test:real` hits IGN. `ruler` writes a printable book,
+  `pageSizes` re-measures the size curve, `shot` captures light and dark screenshots into
+  `packages/web/out/`. Re-running within one browser session costs 0 downloads — the Cache
+  API resume path works.
+
+**Headless Chrome defines `showSaveFilePicker` but nothing can answer its dialog**, so every
+browser test deletes it in an init script and exercises the `<a download>` fallback instead.
+A test that forgets this hangs until the timeout with no useful error.
+
+`packages/web/src/skeleton.ts` is no longer the app — it is the measurement harness the
+`pageSizes` run drives. The app is `ui/App.tsx`.
 
 Rendered at 254 dpi with `pdftoppm`, the blue kilometre grid measures **400.0 px = 40.00 mm**
 between lines. The geometry is right; only printer scaling is left to check on paper.

@@ -14,3 +14,4 @@ dist/
 packages/web/out/
 test-results/
 playwright-report/
+dist/

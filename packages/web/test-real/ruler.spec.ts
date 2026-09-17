@@ -6,23 +6,24 @@ import { expect, test } from '@playwright/test'
 const FIXTURE = fileURLToPath(
   new URL('../../../fixtures/normandie-traverse-30km.gpx', import.meta.url),
 )
-const OUT = fileURLToPath(new URL('../out/ruler-page1.pdf', import.meta.url))
+const OUT = fileURLToPath(new URL('../out/ruler.pdf', import.meta.url))
 
 /**
- * Produces the sheet for the ruler test: one A4 page of real SCAN25, to be printed at 100%
- * with no scaling. On the print, one kilometre of the Lambert-93 grid — and the scale bar —
- * must measure exactly 40.0 mm.
+ * Produces the sheet for the ruler test: real SCAN25, to be printed at 100% with no
+ * scaling. On the print, one kilometre of the Lambert-93 grid — and the scale bar — must
+ * measure exactly 40.0 mm.
  */
-test('writes a printable page from real SCAN25 tiles', async ({ page }) => {
+test('writes a printable book from real SCAN25 tiles', async ({ page }) => {
+  await page.addInitScript(() => {
+    delete (window as unknown as Record<string, unknown>)['showSaveFilePicker']
+  })
   await page.goto('/')
   await page.getByTestId('gpx').setInputFiles(FIXTURE)
+  await expect(page.getByTestId('preview')).toBeVisible()
 
   const download = page.waitForEvent('download')
-  await page.getByTestId('run').click()
-  await expect(page.getByTestId('status')).toHaveAttribute('data-phase', 'done', {
-    timeout: 570_000,
-  })
-  await expect(page.getByTestId('status')).not.toContainText('manquantes')
+  await page.getByTestId('generate').click()
+  await expect(page.getByTestId('job-done')).toBeVisible({ timeout: 570_000 })
 
   const stream = await (await download).createReadStream()
   const chunks: Buffer[] = []
@@ -32,6 +33,6 @@ test('writes a printable page from real SCAN25 tiles', async ({ page }) => {
   mkdirSync(dirname(OUT), { recursive: true })
   writeFileSync(OUT, pdf)
   console.log(`${OUT} — ${(pdf.length / 1_048_576).toFixed(2)} MB`)
-  console.log(await page.getByTestId('status').textContent())
-  expect(pdf.length).toBeGreaterThan(500_000)
+  console.log(await page.getByTestId('job-done').textContent())
+  expect(pdf.length).toBeGreaterThan(1_000_000)
 })
