@@ -25,6 +25,10 @@ jobs:
       - name: Build the debug APK
         run: ./gradlew :app:assembleDebug
 
+      # The same lint gate assembleRelease enforces, so a release never fails alone.
+      - name: Lint the release build
+        run: ./gradlew :app:lintVitalRelease
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
