@@ -60,6 +60,10 @@ class JobRunner(
         for (page in layout.pages) {
             tiles.addAll(TileGrid.tilesCovering(groundBounds(layout, page.rect), TileGrid.NATIVE_MATRIX))
         }
+        if (options.includeIndexPage) {
+            val (frame, matrix) = overviewFrame(layout, options.paper)
+            tiles.addAll(TileGrid.tilesCovering(groundBounds(layout, frame), matrix))
+        }
         return JobEstimate(
             pages = layout.pages.size,
             tiles = tiles.size,
@@ -144,13 +148,22 @@ class JobRunner(
         return ByteArrayOutputStream().also { document.writeTo(it) }.toByteArray()
     }
 
-    private suspend fun indexPdf(layout: Layout, options: JobOptions): ByteArray {
-        val paper = options.paper
+    /**
+     * Ground rectangle and tile matrix for the overview page.
+     *
+     * It deliberately aims at [OVERVIEW_WIDTH_PX] rather than the 2000 pixels a printed page
+     * could hold: an index only has to be readable, and one level coarser is four times
+     * fewer tiles to download.
+     */
+    private fun overviewFrame(layout: Layout, paper: PaperSpec): Pair<Rect, Int> {
         val union = layout.pages.map { it.rect }.reduce { a, b -> a.union(b) }
         val framed = fitToPage(union.expand(union.width * 0.04), paper)
+        return framed to TileGrid.matrixFor(framed.width / OVERVIEW_WIDTH_PX)
+    }
 
-        // Pick the coarsest matrix that still fills the page, so the overview stays small.
-        val matrix = TileGrid.matrixFor(framed.width / (paper.mapWidthM / TileGrid.NATIVE_RESOLUTION))
+    private suspend fun indexPdf(layout: Layout, options: JobOptions): ByteArray {
+        val paper = options.paper
+        val (framed, matrix) = overviewFrame(layout, paper)
         val overview = MapRenderer(fetcher, codec, matrix, quality = options.jpegQuality)
         val widthPx = (framed.width / TileGrid.resolution(matrix)).roundToInt().coerceIn(256, 3000)
         val heightPx = (widthPx * framed.height / framed.width).roundToInt().coerceAtLeast(256)
@@ -250,7 +263,10 @@ class JobRunner(
     }
 
     private companion object {
-        /** Median SCAN25 PNG tile size observed on the Géoplateforme. */
-        const val AVERAGE_TILE_BYTES = 170_000L
+        /** Mean SCAN25 PNG tile size measured over a few hundred alpine tiles. */
+        const val AVERAGE_TILE_BYTES = 145_000L
+
+        /** Width the overview raster aims for, in pixels. */
+        const val OVERVIEW_WIDTH_PX = 1400.0
     }
 }
