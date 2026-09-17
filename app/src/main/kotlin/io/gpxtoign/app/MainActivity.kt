@@ -76,6 +76,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Holds on to the document grant past this activity: the ZIP is written by a background
+ * worker, which may well outlive the screen that picked the files.
+ */
+private fun persist(context: android.content.Context, uri: Uri, write: Boolean) {
+    val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+        if (write) Intent.FLAG_GRANT_WRITE_URI_PERMISSION else 0
+    runCatching { context.contentResolver.takePersistableUriPermission(uri, flags) }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScreen(model: MainViewModel, shared: List<Uri>) {
@@ -95,12 +105,16 @@ private fun MainScreen(model: MainViewModel, shared: List<Uri>) {
 
     val pickGpx = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris -> model.addFiles(uris) }
+    ) { uris ->
+        uris.forEach { persist(context, it, write = false) }
+        model.addFiles(uris)
+    }
 
     val saveZip = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip"),
     ) { uri ->
         if (uri != null) {
+            persist(context, uri, write = true)
             WorkManager.getInstance(context).enqueueUniqueWork(
                 MapJobWorker.NAME,
                 ExistingWorkPolicy.REPLACE,

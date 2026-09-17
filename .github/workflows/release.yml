@@ -40,7 +40,7 @@ jobs:
         run: echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
 
       - name: Unit tests
-        run: ./gradlew :core:test
+        run: ./gradlew :core:test :app:testDebugUnitTest
 
       - name: Build the release APK
         env:

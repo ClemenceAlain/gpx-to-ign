@@ -20,7 +20,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       - name: Unit tests
-        run: ./gradlew :core:test
+        run: ./gradlew :core:test :app:testDebugUnitTest
 
       - name: Build the debug APK
         run: ./gradlew :app:assembleDebug
@@ -39,4 +39,6 @@ jobs:
         if: failure()
         with:
           name: test-report
-          path: core/build/reports/tests/test
+          path: |
+            core/build/reports/tests/test
+            app/build/reports/tests/testDebugUnitTest
