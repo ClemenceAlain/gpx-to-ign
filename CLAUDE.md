@@ -16,6 +16,19 @@ Being rebuilt from Kotlin to a TypeScript monorepo — see `REBUILD-PLAN.md`.
   **GR waymarking** — exactly the paths a walker's GPX follows — so the first attempt was
   indistinguishable from the map under it. Violet plus a white halo is legible over woodland,
   hillshade and road fill alike.
+- **The trace is translucent and smooth.** Violet at alpha 0.5 over a white halo at 0.25, so
+  the footpath it follows still reads underneath; and a **centripetal** Catmull-Rom spline
+  through the GPX points, so there is no kink at every fix. Centripetal, not uniform: uniform
+  Catmull-Rom loops and overshoots on switchbacks. It *interpolates* — the printed line still
+  passes through every recorded point. Asked for 2026-09-18.
+- **Nothing but the map is printed on the map.** The next/previous-page hints were white tabs
+  on the four map edges — exactly where the trace leaves the page — and the north arrow was a
+  13 x 17 mm white box in a corner. Both moved into the footer on 2026-09-18, and the only ink
+  left inside the map rectangle is the frame around it. The footer is the only space on the
+  sheet that is both off the map and inside the safe margin — the 5 mm page margins are the
+  part a non-borderless printer cannot reach, so nothing navigational may live there. The
+  footer now reads: page number, neighbour hints, title, attribution, and below them the scale
+  bar at the left with the north arrow and its rotation at the right.
 - **Plans are deterministic.** Same input, same plan, every time. The resumable-job design
   depends on it: a resumed job replans and must land on the identical tile set.
 - **The UI is French.**
@@ -43,6 +56,7 @@ Each of these came from a measurement, not a guess. Changing one silently degrad
 | `OVERVIEW_WIDTH_PX` | `1400` | At print resolution the overview cost 329 extra tiles; 93 now |
 | `overviewQuality` | `max(q - 12, 45)` | Overview tolerates more compression than map pages |
 | Trace ink | violet `(0.35, 0, 0.75)`, 1.4 pt on a 3.2 pt white halo | Magenta is SCAN25's GR waymarking |
+| Trace alpha | 0.5 line / 0.25 halo | An opaque halo erased the footpath the trace points at. Lowered from 0.7/0.4 on request, 2026-09-18 |
 | JPEG chroma | **4:2:0** — the browser gives nothing else | See below. Was 4:4:4 under Kotlin |
 | Densify / dedupe | 50 m / 5 m | Packing resolution |
 | Fetch tuning | concurrency 6, 4 attempts, 400ms<<(n-1) backoff, retry 429/5xx only | The Geoplateforme throttles aggressive clients and publishes no quota |
@@ -131,8 +145,8 @@ hand-built controls, no component library. Full rules in `REBUILD-PLAN.md`.
 ## Where the rebuild is
 
 Branch `rebuild-typescript`. Last commit `6f8d8b1`.
-`npx vitest run` => 124 passing. `npm run typecheck` clean (it checks all four projects).
-`npm run -w @gpx-to-ign/web test` => 12 Playwright tests passing.
+`npx vitest run` => 126 passing. `npm run typecheck` clean (it checks all four projects).
+`npm run -w @gpx-to-ign/web test` => 14 Playwright tests passing.
 `npx prettier --check .` clean — the config is `.prettierrc.json`; without it Prettier
 reformats the whole repo to its own defaults.
 
@@ -235,19 +249,26 @@ changes nothing — it keeps reporting `does not provide the required capabiliti
 an Object, then calls a method on the null return, and fails with "Value is null". Wrap the
 whole argument: `versionCode Integer.parseInt(...)`.
 
-**`MainActivity.java` is the only Java**, and it does the one job a WebView cannot: read the
-shared `content://` URIs and dispatch a `gpxShared` window event. The listener goes on
+**Android shows the book, it does not share it.** `nativePdfTarget` writes to Documents and
+stops; tapping the finished row calls `FileOpenerPlugin`, thirty lines of Java that fire
+`ACTION_VIEW` at a `FileProvider` URI. It used to push the file straight into the share sheet,
+which asks where to send a file nobody has looked at yet (changed 2026-09-18). `@capacitor/share`
+went with it. On the web the same row opens the blob in a new tab.
+
+**`MainActivity.java` and `FileOpenerPlugin.java` are the only Java.** `MainActivity` does the
+one job a WebView cannot: read the shared `content://` URIs and dispatch a `gpxShared` window
+event. The listener goes on
 `bridgeBuilder`, not the bridge, because `BridgeActivity.onCreate` creates the bridge and
 starts the page load, so a listener added after it can miss the first page.
 `BridgeActivity.load()` calls `onNewIntent(getIntent())` itself, which is what picks up a
 share that launched the app.
 
-**Built and checked, 2026-09-17:** `assembleDebug` (4.3 MB), `assembleRelease` and
-`lintVitalRelease` all pass. The APK carries the SEND / SEND_MULTIPLE / VIEW filters for
+**Built and checked, 2026-09-18:** `assembleDebug`, `assembleRelease` and `lintVitalRelease`
+all pass. The APK carries the SEND / SEND_MULTIPLE / VIEW filters for
 `application/gpx+xml`, and `assets/public/` holds the app plus both workers as separate
 chunks. **Still unverified: everything that needs a device** — the share intent actually
-arriving, module workers running in the Android WebView, the Documents write and the share
-sheet. There is no emulator or system image in `/home/clemence/Android`.
+arriving, module workers running in the Android WebView, the Documents write and the
+`ACTION_VIEW` hand-off to a PDF reader. There is no emulator or system image in `/home/clemence/Android`.
 
 **CI.** `ci.yml` runs format, typecheck, vitest, the web build and the Playwright suite on
 Node 22, then builds the debug APK on a runner with a real JDK. `pages.yml` deploys the web
