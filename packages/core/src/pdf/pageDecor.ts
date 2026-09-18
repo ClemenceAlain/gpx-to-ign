@@ -30,24 +30,28 @@ export interface PageDecorOptions {
  *
  * SCAN25 spends red and orange on roads, blue on water, green on woodland, brown on relief —
  * and **magenta on GR waymarking**, which is exactly the kind of path a walker's GPX follows.
- * Violet is the nearest hue that is legible on all of those and confusable with none, and the
- * white halo under it settles the rest.
+ * Violet is the nearest hue that is legible on all of those and confusable with none.
  */
 export const TRACK_RGB: readonly [number, number, number] = [0.35, 0.0, 0.75]
 
-const TRACK_WIDTH_PT = 1.4
-const TRACK_HALO_PT = 3.2
+/**
+ * One stroke, 2 pt, and nothing under it.
+ *
+ * There used to be a white halo beneath the line — 3.2 pt of it, to lift the violet off dark
+ * woodland. Dropped on request 2026-09-18, and the width went 1.4 -> 2.0 pt to carry the
+ * legibility the halo used to: a wider translucent line reads as a line, while a halo reads
+ * as a band of fog over the map either side of it. Weight is a cheaper way to be seen than
+ * erasure.
+ */
+const TRACK_WIDTH_PT = 2.0
 
 /**
- * Both passes are translucent, so the SCAN25 path under the trace stays readable.
+ * Translucent, so the SCAN25 path under the trace stays readable.
  *
- * The halo is the weaker of the two on purpose: opaque white it erased the very footpath
- * the walker is following, which is the one thing the trace is meant to point at. At these
- * values the violet still separates from woodland and hillshade, and the dashes of a
- * footpath count through it.
+ * Low enough that a footpath's dashes count through the line, high enough that the violet
+ * still separates from woodland and hillshade. Lowered from 0.7 on request, 2026-09-18.
  */
 export const TRACK_ALPHA = 0.5
-export const TRACK_HALO_ALPHA = 0.25
 
 /**
  * Everything printed on top of the map: a north arrow that accounts for the page rotation,
@@ -109,8 +113,8 @@ export class PageDecor {
    * still reads. And it is not clipped by hand any more — the clip is a PDF path, which is
    * what lets a curve cross the page edge without being cut into segments first.
    *
-   * Still drawn twice: a white halo, then the line. One pass over dark forest or a
-   * hillshaded slope disappears into it.
+   * One pass. The white halo that used to go under it is gone (2026-09-18); the line
+   * carries itself on width and colour instead.
    */
   private drawTrack(canvas: PdfPage, page: MapPage): void {
     if (this.track.length === 0) return
@@ -135,20 +139,15 @@ export class PageDecor {
     canvas.save()
     canvas.clipRect(this.mapX, this.mapY, this.mapW, this.mapH)
     canvas.setRoundJoins()
-    for (const [colour, width, alpha] of [
-      [[1.0, 1.0, 1.0] as const, TRACK_HALO_PT, TRACK_HALO_ALPHA],
-      [TRACK_RGB, TRACK_WIDTH_PT, TRACK_ALPHA],
-    ] as const) {
-      canvas.setStroke(colour[0], colour[1], colour[2])
-      canvas.setLineWidth(width)
-      canvas.setAlpha(alpha)
-      for (const leg of visible) {
-        canvas.moveTo(leg[0]![0], leg[0]![1])
-        for (const [c1x, c1y, c2x, c2y, x, y] of smoothCurves(leg)) {
-          canvas.curveTo(c1x, c1y, c2x, c2y, x, y)
-        }
-        canvas.strokePath()
+    canvas.setStroke(TRACK_RGB[0], TRACK_RGB[1], TRACK_RGB[2])
+    canvas.setLineWidth(TRACK_WIDTH_PT)
+    canvas.setAlpha(TRACK_ALPHA)
+    for (const leg of visible) {
+      canvas.moveTo(leg[0]![0], leg[0]![1])
+      for (const [c1x, c1y, c2x, c2y, x, y] of smoothCurves(leg)) {
+        canvas.curveTo(c1x, c1y, c2x, c2y, x, y)
       }
+      canvas.strokePath()
     }
     canvas.restore()
   }

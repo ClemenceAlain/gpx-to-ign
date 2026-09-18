@@ -14,10 +14,14 @@ Being rebuilt from Kotlin to a TypeScript monorepo — see `REBUILD-PLAN.md`.
   always drawn in the on-screen preview.
 - **The printed trace is violet `(0.35, 0, 0.75)`, never magenta.** SCAN25 spends magenta on
   **GR waymarking** — exactly the paths a walker's GPX follows — so the first attempt was
-  indistinguishable from the map under it. Violet plus a white halo is legible over woodland,
-  hillshade and road fill alike.
-- **The trace is translucent and smooth.** Violet at alpha 0.5 over a white halo at 0.25, so
-  the footpath it follows still reads underneath; and a **centripetal** Catmull-Rom spline
+  indistinguishable from the map under it. Violet is legible over woodland, hillshade and road
+  fill alike.
+- **The trace is one translucent stroke, no halo.** Violet at alpha 0.5, 2 pt, so the footpath
+  it follows still reads underneath. A 3.2 pt white halo went under it until 2026-09-18, when
+  it was dropped on request and the line went 1.4 -> 2.0 pt to carry the legibility the halo
+  used to: a wider translucent line reads as a line, a halo reads as a band of fog over the map
+  either side of it. Weight is a cheaper way to be seen than erasure.
+- **The trace is smooth.** A **centripetal** Catmull-Rom spline
   through the GPX points, so there is no kink at every fix. Centripetal, not uniform: uniform
   Catmull-Rom loops and overshoots on switchbacks. It *interpolates* — the printed line still
   passes through every recorded point. Asked for 2026-09-18.
@@ -55,8 +59,8 @@ Each of these came from a measurement, not a guess. Changing one silently degrad
 | `pageBytesAt` curve | q50->0.71 MB … q90->1.49 MB | Re-measured on the browser encoder, 2026-09-17. See below |
 | `OVERVIEW_WIDTH_PX` | `1400` | At print resolution the overview cost 329 extra tiles; 93 now |
 | `overviewQuality` | `max(q - 12, 45)` | Overview tolerates more compression than map pages |
-| Trace ink | violet `(0.35, 0, 0.75)`, 1.4 pt on a 3.2 pt white halo | Magenta is SCAN25's GR waymarking |
-| Trace alpha | 0.5 line / 0.25 halo | An opaque halo erased the footpath the trace points at. Lowered from 0.7/0.4 on request, 2026-09-18 |
+| Trace ink | violet `(0.35, 0, 0.75)`, 2.0 pt, no halo | Magenta is SCAN25's GR waymarking. Was 1.4 pt on a 3.2 pt halo until 2026-09-18 |
+| Trace alpha | 0.5 | The map under the trace has to stay readable. Was 0.7, lowered on request 2026-09-18 |
 | JPEG chroma | **4:2:0** — the browser gives nothing else | See below. Was 4:4:4 under Kotlin |
 | Densify / dedupe | 50 m / 5 m | Packing resolution |
 | Fetch tuning | concurrency 6, 4 attempts, 400ms<<(n-1) backoff, retry 429/5xx only | The Geoplateforme throttles aggressive clients and publishes no quota |

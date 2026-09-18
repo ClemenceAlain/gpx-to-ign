@@ -7,7 +7,7 @@ import {
   pageFrame,
   type MapPage,
 } from '../../src/layout/pageLayout.js'
-import { PageDecor, TRACK_ALPHA, TRACK_HALO_ALPHA, TRACK_RGB, mm } from '../../src/pdf/pageDecor.js'
+import { PageDecor, TRACK_ALPHA, TRACK_RGB, mm } from '../../src/pdf/pageDecor.js'
 import { PdfPage } from '../../src/pdf/pdfPage.js'
 import { fmt } from '../../src/pdf/format.js'
 import { winAnsi } from '../../src/pdf/metrics.js'
@@ -200,7 +200,7 @@ describe('PageDecor', () => {
     expect(draw()).toBe(draw(page(), 0, 1, null, []))
   })
 
-  it('draws the trace as a haloed curve when asked', () => {
+  it('draws the trace as a single unhaloed curve when asked', () => {
     const p = page()
     const content = draw(p, 0, 1, null, [
       leg(
@@ -209,13 +209,14 @@ describe('PageDecor', () => {
         [p.rect.uMin + 4000, p.rect.vMin + 5000],
       ),
     ])
-    // A white halo first, then the trace over it, so it reads over dark forest and rock.
-    expect(content).toContain('1.0000 1.0000 1.0000 RG')
     expect(content).toContain(`${fmt(TRACK_RGB[0])} ${fmt(TRACK_RGB[1])} ${fmt(TRACK_RGB[2])} RG`)
+    // No white halo under it any more: a wider translucent line reads as a line, a halo
+    // reads as fog over the map either side of it.
+    expect(content).not.toContain('1.0000 1.0000 1.0000 RG')
     // Curves, not segments: the only `m ... l S` left is the north arrow's needle.
     expect(strokedSegments(content)).toHaveLength(1)
-    // Two points, two curves, two passes.
-    expect(curvePoints(content)).toHaveLength(12)
+    // Two points, two curves, one pass.
+    expect(curvePoints(content)).toHaveLength(6)
   })
 
   it('draws the trace under 1 alpha so the path beneath it still reads', () => {
@@ -223,11 +224,10 @@ describe('PageDecor', () => {
     const content = draw(p, 0, 1, null, [
       leg([p.rect.uMin + 1000, p.rect.vMin + 1000], [p.rect.uMin + 4000, p.rect.vMin + 5000]),
     ])
-    // The halo is the weaker of the two: opaque, it erased the footpath it points at.
-    expect(TRACK_HALO_ALPHA).toBeLessThan(TRACK_ALPHA)
     expect(TRACK_ALPHA).toBeLessThan(1)
+    // One graphics state, because there is one pass.
     expect(content).toContain('/GS0 gs')
-    expect(content).toContain('/GS1 gs')
+    expect(content).not.toContain('/GS1 gs')
   })
 
   it('clips the trace to the map area with a PDF clipping path', () => {
