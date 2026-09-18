@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        Where the finished book lands: getExternalFilesDir(null). Declared before the broad
+        external root below so the PDF's content:// URI names this root and not that one.
+    -->
+    <external-files-path name="books" path="." />
     <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
 </paths>

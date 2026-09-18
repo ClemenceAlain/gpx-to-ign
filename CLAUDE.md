@@ -249,11 +249,21 @@ changes nothing — it keeps reporting `does not provide the required capabiliti
 an Object, then calls a method on the null return, and fails with "Value is null". Wrap the
 whole argument: `versionCode Integer.parseInt(...)`.
 
-**Android shows the book, it does not share it.** `nativePdfTarget` writes to Documents and
-stops; tapping the finished row calls `FileOpenerPlugin`, thirty lines of Java that fire
+**Android shows the book, it does not share it.** `nativePdfTarget` writes to the app's own
+external files directory and stops; tapping the finished row calls `FileOpenerPlugin`, thirty lines of Java that fire
 `ACTION_VIEW` at a `FileProvider` URI. It used to push the file straight into the share sheet,
 which asks where to send a file nobody has looked at yet (changed 2026-09-18). `@capacitor/share`
 went with it. On the web the same row opens the blob in a new tab.
+
+**`Directory.External`, never `Directory.Documents`.** `Documents` is the *public*
+`/storage/emulated/0/Documents` — see `LegacyFilesystemImplementation.kt:53`. Under scoped
+storage a plain file write there fails with `EACCES`, which is what a real phone did on
+2026-09-18, and **no permission fixes it**: `WRITE_EXTERNAL_STORAGE` has been ignored since
+API 29 and cannot be granted at all from API 33, and `targetSdkVersion` is 35. `External` is
+`getExternalFilesDir(null)` and needs no permission at any level. The cost is that a file
+manager on Android 11+ cannot browse `Android/data`, so the app's own "Terminé" row is the
+way to the book — which is why the row opens it. Putting the PDF back where a file manager
+can see it means MediaStore and new Java, not a different `Directory`.
 
 **`MainActivity.java` and `FileOpenerPlugin.java` are the only Java.** `MainActivity` does the
 one job a WebView cannot: read the shared `content://` URIs and dispatch a `gpxShared` window
@@ -267,8 +277,10 @@ share that launched the app.
 all pass. The APK carries the SEND / SEND_MULTIPLE / VIEW filters for
 `application/gpx+xml`, and `assets/public/` holds the app plus both workers as separate
 chunks. **Still unverified: everything that needs a device** — the share intent actually
-arriving, module workers running in the Android WebView, the Documents write and the
-`ACTION_VIEW` hand-off to a PDF reader. There is no emulator or system image in `/home/clemence/Android`.
+arriving, module workers running in the Android WebView, and the `ACTION_VIEW` hand-off to a
+PDF reader. There is no emulator or system image in `/home/clemence/Android`, and `adb` cannot
+start its server in this sandbox — so every Android path costs a round trip through a real
+phone. The file write is now **known broken in v1.1.0** and fixed in v1.1.1.
 
 **CI.** `ci.yml` runs format, typecheck, vitest, the web build and the Playwright suite on
 Node 22, then builds the debug APK on a runner with a real JDK. `pages.yml` deploys the web

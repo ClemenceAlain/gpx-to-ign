@@ -19,7 +19,8 @@ export function isNative(): boolean {
 }
 
 /**
- * Writes the PDF into Documents, where tapping the finished job opens it in a viewer.
+ * Writes the PDF into the app's own external files directory, where tapping the finished job
+ * opens it in a viewer.
  *
  * This replaces the Storage Access Framework machinery the Compose app needed, and with it
  * the two bugs that machinery caused: the save dialog that never opened on Android 13+
@@ -31,6 +32,12 @@ export function isNative(): boolean {
  * for on 2026-09-18: what you want after a three-minute job is to *look* at the book, and
  * a share sheet is a modal answer to a question nobody asked. Sharing is one tap further
  * on, in whatever viewer opens.
+ *
+ * `Directory.External` and **not** `Directory.Documents`, which is the public
+ * `/storage/emulated/0/Documents`. Under scoped storage a plain file write there fails with
+ * `EACCES`, and no permission fixes it: `WRITE_EXTERNAL_STORAGE` has been ignored since API
+ * 29 and cannot be granted at all from API 33. It failed on a real phone on 2026-09-18.
+ * `External` is `getExternalFilesDir(null)`, which needs no permission at any API level.
  */
 export function nativePdfTarget(suggestedName: string): PdfTarget {
   return {
@@ -39,7 +46,7 @@ export function nativePdfTarget(suggestedName: string): PdfTarget {
       const written = await Filesystem.writeFile({
         path: suggestedName,
         data: base64,
-        directory: Directory.Documents,
+        directory: Directory.External,
         recursive: true,
       })
       return {
