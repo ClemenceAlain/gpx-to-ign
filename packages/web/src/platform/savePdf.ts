@@ -29,9 +29,36 @@ interface FilePickerWindow {
   }) => Promise<FileSystemFileHandle>
 }
 
+/** A finished book on disk, and the way back to it. */
+export interface SavedPdf {
+  readonly fileName: string
+  /**
+   * Shows the book in a viewer. Null where the platform offers no way to.
+   *
+   * Must be called straight from a click: opening a tab is popup-blocked otherwise.
+   */
+  readonly open: (() => Promise<void>) | null
+}
+
 /** Somewhere to put the finished PDF, chosen before the job runs. */
 export interface PdfTarget {
-  write(blob: Blob): Promise<string>
+  write(blob: Blob): Promise<SavedPdf>
+}
+
+/**
+ * Opens a blob in a new tab.
+ *
+ * The saved file itself is unreachable — neither a `FileSystemFileHandle` nor an `<a
+ * download>` yields a URL — so the viewer gets the same bytes from memory. The URL is
+ * revoked on a timer rather than immediately: revoking it before the new tab has fetched it
+ * leaves the reader looking at a blank frame.
+ */
+function viewInTab(blob: Blob): () => Promise<void> {
+  return async () => {
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
 }
 
 /**
@@ -59,7 +86,7 @@ export async function pickPdfTarget(suggestedName: string): Promise<PdfTarget | 
           const writable = await handle.createWritable()
           await writable.write(blob)
           await writable.close()
-          return handle.name
+          return { fileName: handle.name, open: viewInTab(blob) }
         },
       }
     } catch (e) {
@@ -77,7 +104,7 @@ export async function pickPdfTarget(suggestedName: string): Promise<PdfTarget | 
         a.href = url
         a.download = suggestedName
         a.click()
-        return suggestedName
+        return { fileName: suggestedName, open: viewInTab(blob) }
       } finally {
         URL.revokeObjectURL(url)
       }

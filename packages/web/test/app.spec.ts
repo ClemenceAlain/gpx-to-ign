@@ -231,6 +231,42 @@ test('shows a progress bar that actually moves while generating', async ({ page 
   await expect(page.getByTestId('job-done')).toBeVisible({ timeout: 170_000 })
 })
 
+test('opens the finished book instead of sharing it', async ({ page }) => {
+  // chromium-headless-shell has no PDF viewer, so the tab it opens downloads the blob and
+  // keeps an empty URL. What the click asked for is recorded here instead, and the tab
+  // itself is still observed below.
+  await page.addInitScript(() => {
+    const native = window.open.bind(window)
+    const seen: string[] = []
+    ;(window as unknown as Record<string, unknown>)['__opened'] = seen
+    window.open = (url, ...rest) => {
+      seen.push(String(url))
+      return native(url, ...(rest as [string?, string?]))
+    }
+  })
+  await open(page)
+  await serveSyntheticTiles(page)
+  await page.getByTestId('gpx').setInputFiles(FIXTURE)
+  await expect(page.getByTestId('preview')).toBeVisible()
+
+  const download = page.waitForEvent('download')
+  await page.getByTestId('generate').click()
+  const done = page.getByTestId('job-done')
+  await expect(done).toBeVisible({ timeout: 170_000 })
+  await download
+
+  // The row is the way back to the book: a three-minute job ends by showing it, not by
+  // asking where to send a file nobody has looked at yet.
+  // `page` and not `popup`: the app opens the viewer with `noopener`, so the new tab has no
+  // opener and Playwright never ties it back to this page.
+  const opened = page.context().waitForEvent('page')
+  await done.click()
+  await opened
+  const urls = await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)
+  expect(urls).toHaveLength(1)
+  expect(urls[0]).toMatch(/^blob:/)
+})
+
 test('accepts several traces at once', async ({ page }) => {
   await open(page)
   await page.getByTestId('gpx').setInputFiles([FIXTURE, SECOND])

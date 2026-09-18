@@ -19,9 +19,10 @@ import org.json.JSONObject;
 /**
  * The whole native layer: hand shared GPX files to the web app.
  *
- * The WebView cannot read a `content://` URI, so this is the one job Java has to do. Output,
- * storage and the job itself all live in the web layer, which is why there is no plugin here
- * and no Storage Access Framework machinery either.
+ * The WebView cannot read a `content://` URI, so this is the one job Java has to do. Storage
+ * and the job itself live in the web layer, which is why there is no Storage Access Framework
+ * machinery either. The one plugin, {@link FileOpenerPlugin}, exists for the same reason in
+ * the other direction: only Java can hand the finished PDF to a viewer.
  */
 public class MainActivity extends BridgeActivity {
 
@@ -31,6 +32,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Before super: BridgeActivity.onCreate builds the bridge, and a plugin registered
+        // after that is not in it.
+        registerPlugin(FileOpenerPlugin.class);
         // Registered on the builder, not the bridge: BridgeActivity.onCreate creates the
         // bridge and starts the load, so a listener added afterwards can miss the first page.
         bridgeBuilder.addWebViewListener(

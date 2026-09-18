@@ -45,6 +45,7 @@ type Job =
       readonly bytes: number
       readonly missing: number
       readonly fileName: string | null
+      readonly open: (() => Promise<void>) | null
     }
   | { readonly kind: 'failed'; readonly message: string }
 
@@ -222,13 +223,14 @@ export function App(): React.JSX.Element {
       const blob = new Blob([result.pdf.buffer as ArrayBuffer], {
         type: 'application/pdf',
       })
-      const fileName = await target.write(blob)
+      const saved = await target.write(blob)
       setJob({
         kind: 'done',
         pages: result.pages,
         bytes: result.bytesDownloaded,
         missing: result.missingTiles.length,
-        fileName,
+        fileName: saved.fileName,
+        open: saved.open,
       })
     } catch (e) {
       setJob({
@@ -558,12 +560,17 @@ function JobSection({ job }: { job: Job }): React.JSX.Element {
     <>
       <SectionHeader>Terminé</SectionHeader>
       <Section>
+        {/* Tapping the row opens the book. It used to be the moment a share sheet appeared,
+            which asks where to send a file nobody has looked at yet. */}
         <SettingsRow
           testId="job-done"
           title={`PDF de ${job.pages} page${job.pages > 1 ? 's' : ''} enregistré`}
           subtitle={job.fileName}
           tone="success"
-        />
+          onClick={job.open === null ? undefined : () => void job.open?.()}
+        >
+          {job.open !== null && <Chevron expanded={false} />}
+        </SettingsRow>
       </Section>
       <SectionFootnote>
         {megabytes(job.bytes)} téléchargés.

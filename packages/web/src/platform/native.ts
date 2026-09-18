@@ -1,7 +1,17 @@
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import { Directory, Filesystem } from '@capacitor/filesystem'
-import { Share } from '@capacitor/share'
-import type { PdfTarget } from './savePdf.js'
+import type { PdfTarget, SavedPdf } from './savePdf.js'
+
+/**
+ * `FileOpener.open` — `MainActivity`'s companion plugin, thirty lines of Java that fire an
+ * `ACTION_VIEW` intent at a `FileProvider` URI.
+ *
+ * The web build never calls it; `registerPlugin` only builds a proxy, so importing this
+ * module in a browser costs nothing and throws nothing.
+ */
+const FileOpener = registerPlugin<{
+  open(options: { uri: string; mimeType: string }): Promise<void>
+}>('FileOpener')
 
 /** True inside the Capacitor WebView, false in a browser. The same build serves both. */
 export function isNative(): boolean {
@@ -9,17 +19,22 @@ export function isNative(): boolean {
 }
 
 /**
- * Writes the PDF into Documents and offers to share it.
+ * Writes the PDF into Documents, where tapping the finished job opens it in a viewer.
  *
  * This replaces the Storage Access Framework machinery the Compose app needed, and with it
  * the two bugs that machinery caused: the save dialog that never opened on Android 13+
  * (`670a3a2`) and the document grants that died with the background job (`e936bdc`). There
  * is no dialog to open and no grant to keep alive — the app writes to its own Documents
- * directory and hands the file to the system share sheet.
+ * directory.
+ *
+ * It used to push the file straight into the share sheet the moment it was written. Asked
+ * for on 2026-09-18: what you want after a three-minute job is to *look* at the book, and
+ * a share sheet is a modal answer to a question nobody asked. Sharing is one tap further
+ * on, in whatever viewer opens.
  */
 export function nativePdfTarget(suggestedName: string): PdfTarget {
   return {
-    async write(blob: Blob): Promise<string> {
+    async write(blob: Blob): Promise<SavedPdf> {
       const base64 = await toBase64(blob)
       const written = await Filesystem.writeFile({
         path: suggestedName,
@@ -27,18 +42,10 @@ export function nativePdfTarget(suggestedName: string): PdfTarget {
         directory: Directory.Documents,
         recursive: true,
       })
-      // Sharing is best-effort: the file is already saved, and a cancelled share sheet or a
-      // device with nothing to share to must not read as a failed job.
-      try {
-        await Share.share({
-          title: suggestedName,
-          url: written.uri,
-          dialogTitle: 'Partager le PDF',
-        })
-      } catch {
-        /* the file is on disk either way */
+      return {
+        fileName: suggestedName,
+        open: () => FileOpener.open({ uri: written.uri, mimeType: 'application/pdf' }),
       }
-      return suggestedName
     },
   }
 }
