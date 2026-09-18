@@ -7,7 +7,7 @@ import {
   pageFrame,
   type MapPage,
 } from '../../src/layout/pageLayout.js'
-import { PageDecor, TRACK_RGB, mm } from '../../src/pdf/pageDecor.js'
+import { PageDecor, TRACK_ALPHA, TRACK_HALO_ALPHA, TRACK_RGB, mm } from '../../src/pdf/pageDecor.js'
 import { PdfPage } from '../../src/pdf/pdfPage.js'
 import { fmt } from '../../src/pdf/format.js'
 import { winAnsi } from '../../src/pdf/metrics.js'
@@ -27,6 +27,21 @@ function strokedSegments(content: string): [number, number, number, number][] {
     Number(m[3]),
     Number(m[4]),
   ])
+}
+
+/** Every point a `c` operator names: the two controls and the end of each curve. */
+function curvePoints(content: string): [number, number][] {
+  const out: [number, number][] = []
+  for (const m of content.matchAll(
+    /^(-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) c$/gm,
+  )) {
+    out.push(
+      [Number(m[1]), Number(m[2])],
+      [Number(m[3]), Number(m[4])],
+      [Number(m[5]), Number(m[6])],
+    )
+  }
+  return out
 }
 
 const ATTRIBUTION = '© IGN — SCAN25®'
@@ -124,7 +139,9 @@ describe('PageDecor', () => {
     expect(draw(page(), 0, 1, null)).not.toContain('Traversée')
   })
 
-  it('names the neighbouring pages on the edges they continue onto', () => {
+  it('names the neighbouring pages in the footer, never on the map', () => {
+    // They used to be white tabs on the four map edges — exactly where the trace leaves the
+    // page. The footer is the only space that is off the map and inside the safe margin.
     const content = draw({
       number: 2,
       rect: page().rect,
@@ -135,43 +152,102 @@ describe('PageDecor', () => {
     expect(content).toContain(pdfString('p. 4, 5'))
   })
 
+  it('leaves the map area to the map', () => {
+    // Every overlay lives in the footer now: the neighbour hints and the north arrow both
+    // moved off the map, and the arrow's 13 x 17 mm white box went with it. The only ink
+    // inside the map rectangle is the frame around it.
+    const content = draw(
+      { number: 2, rect: page().rect, neighbours: { up: [1], down: [3], left: [6], right: [4] } },
+      (20 * Math.PI) / 180,
+      9,
+      'Traversée',
+    )
+    const footerTop = mm(A4_25K.safeMarginMm + A4_25K.footerMm)
+    // Filled and stroked rectangles: the scale bar's five segments and its outline are in
+    // the footer, and the map frame is the one rectangle allowed to be the map.
+    const frame = `${fmt(mm(5))} ${fmt(footerTop)} ${fmt(mm(200))} ${fmt(mm(277))} re`
+    for (const m of content.matchAll(/^(-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) re [fS]$/gm)) {
+      if (m[0]!.startsWith(frame)) continue
+      expect(Number(m[2]) + Number(m[4])).toBeLessThanOrEqual(footerTop)
+    }
+    // Arrow heads and the north needle: every path starts below the map.
+    for (const m of content.matchAll(/^(-?[\d.]+) (-?[\d.]+) m/gm)) {
+      expect(Number(m[2])).toBeLessThan(footerTop)
+    }
+    // Every line of type, too.
+    for (const m of content.matchAll(/Tf (-?[\d.]+) (-?[\d.]+) Td/g)) {
+      expect(Number(m[2])).toBeLessThan(footerTop)
+    }
+  })
+
+  it('elides a title that would run into the attribution', () => {
+    const long =
+      'Traversée de la Normandie par les chemins de halage, les bois de Brotonne et le marais Vernier'
+    const content = draw(
+      { number: 2, rect: page().rect, neighbours: { up: [1], down: [3], left: [], right: [4, 5] } },
+      0,
+      9,
+      long,
+    )
+    expect(content).not.toContain(pdfString(long))
+    // WinAnsi puts the ellipsis at 0x85, and it is the last thing before the close paren.
+    expect(content).toContain(`${String.fromCharCode(0x85)}) Tj`)
+  })
+
   it('does not draw the trace unless it is given one', () => {
     // The default is still what it always was: the GPX decides where the pages go and is
     // not printed on them.
     expect(draw()).toBe(draw(page(), 0, 1, null, []))
   })
 
-  it('draws the trace as a haloed polyline when asked', () => {
+  it('draws the trace as a haloed curve when asked', () => {
     const p = page()
     const content = draw(p, 0, 1, null, [
-      leg([p.rect.uMin + 1000, p.rect.vMin + 1000], [p.rect.uMin + 4000, p.rect.vMin + 5000]),
+      leg(
+        [p.rect.uMin + 1000, p.rect.vMin + 1000],
+        [p.rect.uMin + 2500, p.rect.vMin + 3000],
+        [p.rect.uMin + 4000, p.rect.vMin + 5000],
+      ),
     ])
     // A white halo first, then the trace over it, so it reads over dark forest and rock.
     expect(content).toContain('1.0000 1.0000 1.0000 RG')
     expect(content).toContain(`${fmt(TRACK_RGB[0])} ${fmt(TRACK_RGB[1])} ${fmt(TRACK_RGB[2])} RG`)
-    // One halo pass and one colour pass over the same segment, plus the arrow's needle.
-    expect(strokedSegments(content)).toHaveLength(3)
+    // Curves, not segments: the only `m ... l S` left is the north arrow's needle.
+    expect(strokedSegments(content)).toHaveLength(1)
+    // Two points, two curves, two passes.
+    expect(curvePoints(content)).toHaveLength(12)
   })
 
-  it('clips the trace to the map area', () => {
+  it('draws the trace under 1 alpha so the path beneath it still reads', () => {
+    const p = page()
+    const content = draw(p, 0, 1, null, [
+      leg([p.rect.uMin + 1000, p.rect.vMin + 1000], [p.rect.uMin + 4000, p.rect.vMin + 5000]),
+    ])
+    // The halo is the weaker of the two: opaque, it erased the footpath it points at.
+    expect(TRACK_HALO_ALPHA).toBeLessThan(TRACK_ALPHA)
+    expect(TRACK_ALPHA).toBeLessThan(1)
+    expect(content).toContain('/GS0 gs')
+    expect(content).toContain('/GS1 gs')
+  })
+
+  it('clips the trace to the map area with a PDF clipping path', () => {
     const p = page()
     // A leg running far outside the page must not paint over the footer or the margins.
+    // A curve cannot be clipped segment by segment, so the clip is the page's own.
     const content = draw(p, 0, 1, null, [
-      leg([p.rect.uMin - 50_000, p.rect.vMin + 3000], [p.rect.uMax + 50_000, p.rect.vMin + 3000]),
+      leg(
+        [p.rect.uMin - 50_000, p.rect.vMin + 3000],
+        [p.rect.uMin + 2000, p.rect.vMin + 3000],
+        [p.rect.uMax + 50_000, p.rect.vMin + 3000],
+      ),
     ])
-    const segments = strokedSegments(content)
-    expect(segments.length).toBeGreaterThanOrEqual(2)
-    for (const [x1, y1, x2, y2] of segments) {
-      for (const [x, y] of [
-        [x1, y1],
-        [x2, y2],
-      ]) {
-        expect(x).toBeGreaterThanOrEqual(mm(5) - 0.01)
-        expect(x).toBeLessThanOrEqual(mm(205) + 0.01)
-        expect(y).toBeGreaterThanOrEqual(mm(15) - 0.01)
-        expect(y).toBeLessThanOrEqual(mm(292) + 0.01)
-      }
-    }
+    const x = mm(5)
+    const y = mm(15)
+    expect(content).toContain(`q\n${fmt(x)} ${fmt(y)} ${fmt(mm(200))} ${fmt(mm(277))} re W n`)
+    // The curve itself runs off the page; only the clip keeps it off the margins.
+    expect(curvePoints(content).some(([px]) => px < x)).toBe(true)
+    // ...and the clip is popped afterwards, or the footer would be cut to the map too.
+    expect(content.lastIndexOf('\nQ\n')).toBeGreaterThan(content.lastIndexOf(' c\n'))
   })
 
   it('drops a leg that misses the page entirely', () => {

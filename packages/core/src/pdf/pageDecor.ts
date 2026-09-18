@@ -1,4 +1,4 @@
-import { clipSegment } from './geometry.js'
+import { intersectsBox, smoothCurves, type Pt } from './geometry.js'
 import type { PdfPage } from './pdfPage.js'
 import type { PagePoint } from '../layout/planPreview.js'
 import {
@@ -37,6 +37,17 @@ export const TRACK_RGB: readonly [number, number, number] = [0.35, 0.0, 0.75]
 
 const TRACK_WIDTH_PT = 1.4
 const TRACK_HALO_PT = 3.2
+
+/**
+ * Both passes are translucent, so the SCAN25 path under the trace stays readable.
+ *
+ * The halo is the weaker of the two on purpose: opaque white it erased the very footpath
+ * the walker is following, which is the one thing the trace is meant to point at. At these
+ * values the violet still separates from woodland and hillshade, and the dashes of a
+ * footpath count through it.
+ */
+export const TRACK_ALPHA = 0.5
+export const TRACK_HALO_ALPHA = 0.25
 
 /**
  * Everything printed on top of the map: a north arrow that accounts for the page rotation,
@@ -84,157 +95,165 @@ export class PageDecor {
     canvas.setLineWidth(0.6)
     canvas.strokeRect(this.mapX, this.mapY, this.mapW, this.mapH)
 
-    this.drawNorthArrow(canvas)
-    this.drawNeighbourTabs(canvas, page)
     this.drawFooter(canvas, page, total)
   }
 
   // --- the walk ----------------------------------------------------------------------
 
   /**
-   * The trace, clipped to the map area so it never paints over the margins or the footer.
+   * The trace: one smooth translucent polyline per leg, clipped to the map area.
    *
-   * Drawn twice: a white halo, then the line. One pass over dark forest or a hillshaded
-   * slope disappears into it.
+   * Three things it is not. It is not a chain of straight segments — a centripetal
+   * Catmull-Rom spline runs through the GPX points so the printed line has no kink at each
+   * fix. It is not opaque — both passes are translucent so the path on the map underneath
+   * still reads. And it is not clipped by hand any more — the clip is a PDF path, which is
+   * what lets a curve cross the page edge without being cut into segments first.
+   *
+   * Still drawn twice: a white halo, then the line. One pass over dark forest or a
+   * hillshaded slope disappears into it.
    */
   private drawTrack(canvas: PdfPage, page: MapPage): void {
     if (this.track.length === 0) return
     const rect = page.rect
-    const toPt = (p: PagePoint): [number, number] => [
+    const toPt = (p: PagePoint): Pt => [
       this.mapX + (p.u - rect.uMin) / this.metresPerPt,
       this.mapY + (p.v - rect.vMin) / this.metresPerPt,
     ]
 
-    const visible: [number, number, number, number][] = []
-    for (const leg of this.track) {
-      for (let i = 1; i < leg.length; i++) {
-        const [x1, y1] = toPt(leg[i - 1]!)
-        const [x2, y2] = toPt(leg[i]!)
-        const clipped = clipSegment(
-          x1,
-          y1,
-          x2,
-          y2,
-          this.mapX,
-          this.mapY,
-          this.mapX + this.mapW,
-          this.mapY + this.mapH,
-        )
-        if (clipped !== null) visible.push(clipped)
-      }
-    }
+    const visible = this.track
+      .map((leg) => leg.map(toPt))
+      .filter(
+        (leg) =>
+          leg.length >= 2 &&
+          // The clip would hide it anyway, but a leg on another page must leave the content
+          // stream byte for byte as it was, or "no track" and "a track off this page" would
+          // produce different files.
+          intersectsBox(leg, this.mapX, this.mapY, this.mapX + this.mapW, this.mapY + this.mapH),
+      )
     if (visible.length === 0) return
 
-    for (const [colour, width] of [
-      [[1.0, 1.0, 1.0] as const, TRACK_HALO_PT],
-      [TRACK_RGB, TRACK_WIDTH_PT],
+    canvas.save()
+    canvas.clipRect(this.mapX, this.mapY, this.mapW, this.mapH)
+    canvas.setRoundJoins()
+    for (const [colour, width, alpha] of [
+      [[1.0, 1.0, 1.0] as const, TRACK_HALO_PT, TRACK_HALO_ALPHA],
+      [TRACK_RGB, TRACK_WIDTH_PT, TRACK_ALPHA],
     ] as const) {
       canvas.setStroke(colour[0], colour[1], colour[2])
       canvas.setLineWidth(width)
-      for (const [x1, y1, x2, y2] of visible) canvas.line(x1, y1, x2, y2)
+      canvas.setAlpha(alpha)
+      for (const leg of visible) {
+        canvas.moveTo(leg[0]![0], leg[0]![1])
+        for (const [c1x, c1y, c2x, c2y, x, y] of smoothCurves(leg)) {
+          canvas.curveTo(c1x, c1y, c2x, c2y, x, y)
+        }
+        canvas.strokePath()
+      }
     }
+    canvas.restore()
   }
 
   // --- overlays ----------------------------------------------------------------------
 
-  private drawNorthArrow(canvas: PdfPage): void {
-    const boxW = mm(13.0)
-    const boxH = mm(17.0)
-    const x = this.mapX + this.mapW - boxW - mm(2.0)
-    const y = this.mapY + this.mapH - boxH - mm(2.0)
-
-    canvas.setFill(1.0, 1.0, 1.0)
-    canvas.fillRect(x, y, boxW, boxH)
-    canvas.setStroke(0.0, 0.0, 0.0)
-    canvas.setLineWidth(0.5)
-    canvas.strokeRect(x, y, boxW, boxH)
-
-    const cx = x + boxW / 2.0
-    const cy = y + mm(7.5)
+  /**
+   * North, and the turn the reader has to undo, at the right-hand end of the scale bar's row.
+   *
+   * It used to be a 13 x 17 mm white box in the top-right corner of the map — 220 mm² of
+   * SCAN25 painted over on every page, and on a rotated page that corner is as likely to hold
+   * the walk as any other. It followed the neighbour hints into the footer on 2026-09-18,
+   * where it also balances the scale bar at the other end of the same row.
+   *
+   * The needle still has to point anywhere on the compass, so this is the one piece of footer
+   * furniture that needs height rather than a baseline.
+   */
+  private drawNorthArrow(canvas: PdfPage, cy: number): void {
     const [nu, nv] = this.frame.northOnPage()
-    const len = mm(5.5)
-    const tipX = cx + nu * len
-    const tipY = cy + nv * len
-    const tailX = cx - nu * len
-    const tailY = cy - nv * len
-    // Perpendicular, for the arrow head.
-    const px = -nv * mm(1.8)
-    const py = nu * mm(1.8)
+    const rotation = `${Math.round((360.0 - this.frame.angleDeg) % 360.0)}°`
+    const needle = mm(2.2)
+    const gap = mm(1.6)
+    const width =
+      needle * 2 + gap + canvas.textWidth('N', 7.0, true) + gap + canvas.textWidth(rotation, 6.0)
 
+    const cx = this.mapX + this.mapW - width + needle
+    const tipX = cx + nu * needle
+    const tipY = cy + nv * needle
+    // Perpendicular, for the arrow head.
+    const px = -nv * mm(0.9)
+    const py = nu * mm(0.9)
+
+    canvas.setStroke(0.0, 0.0, 0.0)
     canvas.setLineWidth(0.8)
-    canvas.line(tailX, tailY, tipX, tipY)
+    canvas.line(cx - nu * needle, cy - nv * needle, tipX, tipY)
     canvas.setFill(0.0, 0.0, 0.0)
     canvas.fillPolygon([
       [tipX, tipY],
-      [tipX - nu * mm(3.5) + px, tipY - nv * mm(3.5) + py],
-      [tipX - nu * mm(3.5) - px, tipY - nv * mm(3.5) - py],
+      [tipX - nu * mm(1.8) + px, tipY - nv * mm(1.8) + py],
+      [tipX - nu * mm(1.8) - px, tipY - nv * mm(1.8) - py],
     ])
-    canvas.textCentered(cx, y + mm(1.5), 7.0, 'N', true)
-    const rotation = Math.round((360.0 - this.frame.angleDeg) % 360.0)
-    canvas.textCentered(cx, y + boxH - mm(3.0), 5.0, `${rotation}°`)
-  }
-
-  /**
-   * White tabs on each edge naming the page that carries the map on. The arrow is a
-   * triangle rather than a glyph, because WinAnsi encoding has no arrow characters.
-   */
-  private drawNeighbourTabs(canvas: PdfPage, page: MapPage): void {
-    const tab = (
-      numbers: readonly number[],
-      x: number,
-      y: number,
-      dirX: number,
-      dirY: number,
-    ): void => {
-      if (numbers.length === 0) return
-      const label = `p. ${numbers.join(', ')}`
-      const arrow = mm(3.0)
-      const w = canvas.textWidth(label, 7.0, true) + arrow + mm(3.0)
-      const h = mm(4.5)
-      canvas.setFill(1.0, 1.0, 1.0)
-      canvas.fillRect(x - w / 2, y - h / 2, w, h)
-      canvas.setStroke(0.0, 0.0, 0.0)
-      canvas.setLineWidth(0.4)
-      canvas.strokeRect(x - w / 2, y - h / 2, w, h)
-
-      const ax = x - w / 2 + mm(1.0) + arrow / 2
-      const half = arrow / 2
-      canvas.setFill(0.0, 0.0, 0.0)
-      canvas.fillPolygon([
-        [ax + dirX * half, y + dirY * half],
-        [ax - dirX * half - dirY * half, y - dirY * half + dirX * half],
-        [ax - dirX * half + dirY * half, y - dirY * half - dirX * half],
-      ])
-      canvas.text(x - w / 2 + mm(1.0) + arrow + mm(1.0), y - mm(1.1), 7.0, label, true)
-    }
-    const cx = this.mapX + this.mapW / 2
-    const cy = this.mapY + this.mapH / 2
-    tab(page.neighbours.up, cx, this.mapY + this.mapH - mm(3.0), 0.0, 1.0)
-    tab(page.neighbours.down, cx, this.mapY + mm(3.0), 0.0, -1.0)
-    tab(page.neighbours.left, this.mapX + mm(16.0), cy, -1.0, 0.0)
-    tab(page.neighbours.right, this.mapX + this.mapW - mm(16.0), cy, 1.0, 0.0)
+    // Cap height is about 0.7 em, so half of it is what puts a label on the needle's axis.
+    canvas.text(cx + needle + gap, cy - mm((7.0 * 0.7 * 25.4) / 72 / 2), 7.0, 'N', true)
+    canvas.textRight(this.mapX + this.mapW, cy - mm((6.0 * 0.7 * 25.4) / 72 / 2), 6.0, rotation)
   }
 
   private drawFooter(canvas: PdfPage, page: MapPage, total: number): void {
     const baseline = mm(this.paper.safeMarginMm + 1.5)
+    const line = baseline + mm(5.0)
     const number = `Page ${page.number} / ${total}`
     canvas.setFill(0.0, 0.0, 0.0)
-    canvas.text(this.mapX, baseline + mm(5.0), 9.0, number, true)
+    canvas.text(this.mapX, line, 9.0, number, true)
+
+    const attribution = `1:${this.paper.scaleDenominator} · ${this.attribution}`
+    canvas.textRight(this.mapX + this.mapW, line, 7.0, attribution)
+
+    let cursor = this.mapX + canvas.textWidth(number, 9.0, true) + mm(4.0)
+    cursor += this.drawNeighbourHints(canvas, page, cursor, line)
     if (this.title !== null) {
-      canvas.text(
-        this.mapX + canvas.textWidth(`${number}  `, 9.0, true),
-        baseline + mm(5.0),
-        8.0,
-        this.title,
-      )
+      const room = this.mapX + this.mapW - canvas.textWidth(attribution, 7.0) - mm(4.0) - cursor
+      const title = elide(canvas, this.title, 8.0, room)
+      if (title !== null) canvas.text(cursor, line, 8.0, title)
     }
-    canvas.textRight(
-      this.mapX + this.mapW,
-      baseline + mm(5.0),
-      7.0,
-      `1:${this.paper.scaleDenominator} · ${this.attribution}`,
-    )
     this.drawScaleBar(canvas, this.mapX, baseline)
+    // High enough that the needle clears the safe margin below and the footer's text row
+    // above: it is the one piece of furniture down here that is taller than a line of type.
+    this.drawNorthArrow(canvas, baseline + mm(1.1))
+  }
+
+  /**
+   * The pages the map carries on onto, in the footer rather than on the map.
+   *
+   * They used to be white tabs pinned to the four map edges — which is exactly where the
+   * trace leaves the page, so each one covered the detail a walker needs most. The footer
+   * is the only space on the sheet that is off the map *and* inside the safe margin, so
+   * that is where they went (2026-09-18). Direction survives as a filled triangle, because
+   * WinAnsi encoding has no arrow characters.
+   *
+   * @returns the width used, so the title can start after it.
+   */
+  private drawNeighbourHints(canvas: PdfPage, page: MapPage, x: number, y: number): number {
+    const arrow = mm(2.2)
+    const gap = mm(1.4)
+    let at = x
+    const hint = (numbers: readonly number[], dirX: number, dirY: number): void => {
+      if (numbers.length === 0) return
+      const cy = y + mm(0.9)
+      const half = arrow / 2
+      canvas.setFill(0.0, 0.0, 0.0)
+      canvas.fillPolygon([
+        [at + half + dirX * half, cy + dirY * half],
+        [at + half - dirX * half - dirY * half, cy - dirY * half + dirX * half],
+        [at + half - dirX * half + dirY * half, cy - dirY * half - dirX * half],
+      ])
+      at += arrow + mm(0.8)
+      const label = `p. ${numbers.join(', ')}`
+      canvas.text(at, y, 7.0, label, true)
+      at += canvas.textWidth(label, 7.0, true) + gap * 2
+    }
+    // Reading order round the page: back, up, on, down.
+    hint(page.neighbours.left, -1.0, 0.0)
+    hint(page.neighbours.up, 0.0, 1.0)
+    hint(page.neighbours.right, 1.0, 0.0)
+    hint(page.neighbours.down, 0.0, -1.0)
+    return at === x ? 0 : at - x
   }
 
   private drawScaleBar(canvas: PdfPage, x: number, y: number): void {
@@ -255,4 +274,20 @@ export class PageDecor {
     canvas.text(x, y - mm(2.6), 6.0, '0')
     canvas.textRight(x + barW, y - mm(2.6), 6.0, '1 km')
   }
+}
+
+/**
+ * `value` cut to fit `room`, with an ellipsis, or null when even the ellipsis will not fit.
+ *
+ * The footer is one row and the neighbour hints took some of it, so a long trace name has
+ * to give way rather than run into the attribution on the right.
+ */
+function elide(canvas: PdfPage, value: string, size: number, room: number): string | null {
+  if (room <= 0) return null
+  if (canvas.textWidth(value, size) <= room) return value
+  for (let length = value.length - 1; length > 0; length--) {
+    const cut = `${value.slice(0, length).trimEnd()}…`
+    if (canvas.textWidth(cut, size) <= room) return cut
+  }
+  return null
 }

@@ -36,6 +36,12 @@ class ByteBuffer {
 /** Drawing surface for one page, in PostScript points with the origin at the bottom left. */
 export class PdfPage {
   readonly images: PdfImage[] = []
+  /**
+   * Every constant alpha the page asked for, in the order it asked. PDF has no `alpha`
+   * operator: transparency is a graphics state the page resources have to name, so the
+   * document turns this into `/ExtGState << /GS0 ... >>` when it serialises the page.
+   */
+  readonly alphas: number[] = []
   private readonly content = new ByteBuffer()
 
   readonly widthPt: number
@@ -68,6 +74,60 @@ export class PdfPage {
     const index = this.images.length
     this.images.push({ jpeg, widthPx, heightPx })
     this.op(`q ${fmt(w)} 0 0 ${fmt(h)} ${fmt(x)} ${fmt(y)} cm /Im${index} Do Q`)
+  }
+
+  /** `q` — pushes the graphics state, so colour, width, alpha and clip can be undone. */
+  save(): void {
+    this.op('q')
+  }
+
+  /** `Q` — pops it. */
+  restore(): void {
+    this.op('Q')
+  }
+
+  /**
+   * Intersects the clipping path with a rectangle. Everything drawn until the next
+   * `restore()` is cut to it, which is how the trace stays off the margins and the footer
+   * without any of it being clipped by hand.
+   */
+  clipRect(x: number, y: number, w: number, h: number): void {
+    this.op(`${fmt(x)} ${fmt(y)} ${fmt(w)} ${fmt(h)} re W n`)
+  }
+
+  /**
+   * Constant alpha for both strokes and fills, until the next `restore()`.
+   *
+   * Only sensible between `save()` and `restore()`: PDF has no way to say "back to opaque"
+   * other than naming another state or popping this one.
+   */
+  setAlpha(alpha: number): void {
+    let index = this.alphas.indexOf(alpha)
+    if (index < 0) index = this.alphas.push(alpha) - 1
+    this.op(`/GS${index} gs`)
+  }
+
+  moveTo(x: number, y: number): void {
+    this.op(`${fmt(x)} ${fmt(y)} m`)
+  }
+
+  lineTo(x: number, y: number): void {
+    this.op(`${fmt(x)} ${fmt(y)} l`)
+  }
+
+  /** Cubic Bézier from the current point, through two controls, to (x, y). */
+  curveTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): void {
+    this.op(`${fmt(c1x)} ${fmt(c1y)} ${fmt(c2x)} ${fmt(c2y)} ${fmt(x)} ${fmt(y)} c`)
+  }
+
+  /** `S` — strokes the path built since the last `moveTo`. */
+  strokePath(): void {
+    this.op('S')
+  }
+
+  /** Round joins and caps, so a smoothed trace has no mitre spikes at a sharp switchback. */
+  setRoundJoins(): void {
+    this.op('1 J 1 j')
   }
 
   setFill(r: number, g: number, b: number): void {

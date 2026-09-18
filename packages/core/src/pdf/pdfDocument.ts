@@ -110,6 +110,15 @@ export class PdfDocument {
       })
       resources += '>>'
     }
+    if (page.alphas.length > 0) {
+      // Direct dictionaries: an ExtGState holding nothing but a constant alpha is shorter
+      // than the indirect object that would have to point at it.
+      resources += ' /ExtGState << '
+      page.alphas.forEach((alpha, index) => {
+        resources += `/GS${index} << /Type /ExtGState /CA ${fmt(alpha)} /ca ${fmt(alpha)} >> `
+      })
+      resources += '>>'
+    }
     resources += ' /ProcSet [/PDF /Text /ImageC] >>'
 
     const pageRef = this.allocate()
